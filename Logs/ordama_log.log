@@ -1,0 +1,6 @@
+2026-10-26 19:16:25,683 - app - INFO - ORDAMA initialisiert. Base Dir: C:\Users\User\Desktop\Neuer Ordner\ORDAMA
+2026-10-26 19:16:25,686 - app - INFO - SECRET_KEY aus Konfiguration geladen
+2026-10-26 19:16:25,790 - app - INFO - Security Logger an Rate Limiter übergeben
+2026-10-26 19:16:25,793 - app - INFO - Backup-Info: Es existieren 1 Image-Backups, letzter Backup: 2026-09-27T00:14:56.054715
+2026-10-26 19:18:58,625 - app - INFO - Server wird heruntergefahren...
+2026-10-26 19:18:58,626 - app - ERROR - Fehler beim Schützen der Datenbank beim Beenden: 'DatabaseManager' object has no attribute 'db_path'

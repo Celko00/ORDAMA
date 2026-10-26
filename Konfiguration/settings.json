@@ -1,0 +1,139 @@
+{
+    "server": {
+        "host": "0.0.0.0",
+        "port": 8081,
+        "allow_external": true,
+        "auto_restart": false,
+        "name": "ORDAMA",
+        "plz_validation_enabled": false
+    },
+    "database": {
+        "name": "ordama.db"
+    },
+    "security": {
+        "max_login_attempts": 5,
+        "rate_limit_window_minutes": 15,
+        "password_min_length": 8,
+        "secret_key": "57172fbf9a38eb2d48181c80867ec688229a8fd16eff7d263ab629455cd94112",
+        "ip_whitelist_mode": "none",
+        "cloudflare_ips": [
+            "103.21.244.0/22",
+            "103.22.200.0/22",
+            "103.31.4.0/22",
+            "104.16.0.0/13",
+            "104.24.0.0/14",
+            "108.162.192.0/18",
+            "131.0.72.0/22",
+            "141.101.64.0/18",
+            "162.158.0.0/15",
+            "162.159.0.0/16",
+            "172.64.0.0/13",
+            "172.69.0.0/16",
+            "173.245.48.0/20",
+            "176.7.43.241",
+            "188.114.96.0/20",
+            "190.93.240.0/20",
+            "197.234.240.0/22",
+            "198.41.128.0/17"
+        ],
+        "custom_ips": [
+            "192.168.0.142:8080"
+        ]
+    },
+    "upload": {
+        "max_file_size_mb": 500,
+        "allowed_extensions": [
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".txt",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".mp4",
+            ".mp3",
+            ".zip",
+            ".rar"
+        ]
+    },
+    "paths": {
+        "data_dir": "./Datenbank",
+        "akten_dir": "./Speicher/Akten",
+        "data_base_dir": "./Speicher",
+        "backup_dir": "./Backups",
+        "attachments_dir": ""
+    },
+    "session": {
+        "permanent": true
+    },
+    "network": {
+        "request_limit_enabled": false,
+        "max_requests_per_minute": 100,
+        "block_duration_seconds": 60,
+        "description": "Schützt vor Überlastung durch zu viele Anfragen pro Benutzer"
+    },
+    "ocr": {
+        "enabled": true,
+        "lang": "deu+eng",
+        "poll_interval_seconds": 5.0,
+        "render_scale": 2.0,
+        "tesseract_cmd": "C:\\Users\\User\\AppData\\Roaming\\TRAE SOLO\\ModularData\\ai-agent\\vm\\tools\\bin\\tesseract.cmd",
+        "tessdata_dir": "C:\\Users\\User\\AppData\\Roaming\\TRAE SOLO\\ModularData\\ai-agent\\vm\\tools\\app\\tesseract\\tessdata",
+        "page_delay_seconds": 0.5,
+        "job_delay_seconds": 1,
+        "schedule_mode": "always",
+        "schedule_start": "20:00",
+        "schedule_end": "06:00",
+        "oem": "3",
+        "psm": "3",
+        "dpi": 300,
+        "preprocessing": {
+            "enabled": true,
+            "denoise": true,
+            "sharpen": true,
+            "binarize": false,
+            "deskew": true,
+            "contrast_enhance": true
+        }
+    },
+    "backup": {
+        "interval": "none",
+        "keep_count": 1,
+        "last_backup": "2026-09-23T21:31:25.291513",
+        "time": "00:00",
+        "backup_on_startup": false
+    },
+    "archive": {
+        "enabled": false,
+        "auto_archive": true,
+        "logic": "and",
+        "schedule_mode": "always",
+        "schedule_start": "20:00",
+        "schedule_end": "06:00",
+        "age_days": 365,
+        "age_months": 0,
+        "age_years": 0,
+        "unused_days": 180,
+        "unused_months": 0,
+        "unused_years": 0,
+        "run_interval": "monthly",
+        "last_run": "",
+        "description": "Automatische Archivierung von Akten basierend auf Alter und letzter Nutzung"
+    },
+    "search": {
+        "enabled": true,
+        "duplicate_candidate_limit": 100,
+        "similarity_candidate_limit": 200,
+        "similarity_limit": 20
+    },
+    "cors": {
+        "allowed_origins": [
+            "http://localhost:8081",
+            "http://127.0.0.1:8081",
+            "http://192.168.0.142:8081",
+            "http://192.168.0.142"
+        ],
+        "allow_credentials": true
+    }
+}

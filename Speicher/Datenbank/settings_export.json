@@ -1,0 +1,16 @@
+{
+  "server": "{\"host\": \"0.0.0.0\", \"port\": 8080, \"debug\": false}",
+  "security": "{\"session_timeout_minutes\": 120}",
+  "upload": "{\"max_file_size_mb\": 5000}",
+  "default_filter": "all",
+  "default_sort": "created_desc",
+  "session": "{\"timeout_minutes\": 1, \"permanent\": true}",
+  "similarity_limit": "20",
+  "similarity": "{\"limit\": 25}",
+  "network": "{\"request_limit_enabled\": true, \"max_requests_per_minute\": 100}",
+  "search": "{\"enabled\": true, \"similarity_limit\": 20, \"duplicate_candidate_limit\": 100, \"similarity_candidate_limit\": 200}",
+  "duplicate_threshold": "0.5",
+  "similarity_weights": "{\"title\": 1.3, \"content\": 1, \"address\": 0.5, \"hashtags\": 0.8, \"category\": 0.6, \"border_color\": 0.3, \"status\": 0.4, \"attachments\": 0.5, \"ocr_text\": 1.1, \"creation_date\": 0.2, \"update_date\": 0.3}",
+  "ip_filter_enabled": "false",
+  "server_name": "Privater Server"
+}

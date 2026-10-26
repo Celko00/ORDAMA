@@ -1,0 +1,3029 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="description" content="Enterprise-Lösung zur effizienten Aktenverwaltung mit Offline-Modus">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ORDAMA">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="start.png">
+    <link rel="manifest" href="manifest.json">
+    <title>ORDAMA</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="fonts/all.min.css">
+    <link rel="stylesheet" href="css/style.css?v=20260907_3">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- html2pdf.js für PDF-Generierung -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- pdf.js für PDF-Vorschau -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     LOGIN SCREEN
+     ════════════════════════════════════════════ -->
+<div id="loginScreen" class="login-screen">
+    <div class="login-card">
+        <img src="start.png" alt="" class="logo">
+        <div id="loginServerName" class="login-server-name"></div>
+        <form id="loginForm">
+            <div class="form-group">
+                <input type="text" id="loginUser" class="form-control" placeholder="Benutzername" required autocomplete="off">
+            </div>
+            <div class="form-group" style="position: relative;">
+                <input type="password" id="loginPass" class="form-control" placeholder="Passwort" required autocomplete="off" style="padding-right: 40px;">
+                <button type="button" id="togglePassword" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--secondary);">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-sign-in-alt"></i> Anmelden
+            </button>
+            <div id="loginMessage" class="login-message"></div>
+        </form>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     APP
+     ════════════════════════════════════════════ -->
+<div id="app" class="app">
+
+    <!-- Mobile Header -->
+    <header class="app-header">
+        <button class="header-btn" id="sidebarToggle" aria-label="Menu">
+            <i class="fas fa-bars"></i>
+        </button>
+        <h1 id="pageTitle">Akten</h1>
+        <div class="header-actions">
+            <button class="header-btn" onclick="App.logout()" aria-label="Abmelden">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Sidebar (Desktop + Mobile Drawer) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-content-display" id="sidebarContentDisplay">
+                <div class="sidebar-display-item active" data-display="logo">
+                    <img src="start.png" alt="Logo">
+                </div>
+                <div class="sidebar-display-item" data-display="clock">
+                    <div class="sidebar-clock">
+                        <div class="clock-face">
+                            <div class="clock-center"></div>
+                            <div class="clock-hour" id="clockHour"></div>
+                            <div class="clock-minute" id="clockMinute"></div>
+                            <div class="clock-second" id="clockSecond"></div>
+                        </div>
+                        <div class="digital-time" id="digitalTime">--:--:--</div>
+                    </div>
+                </div>
+                <div class="sidebar-display-item" data-display="calendar">
+                    <div class="sidebar-calendar">
+                        <div class="cal-header-nav">
+                            <button class="cal-nav-mini" id="miniCalPrev"><i class="fas fa-chevron-left"></i></button>
+                            <span id="miniCalMonth">-</span>
+                            <button class="cal-nav-mini" id="miniCalNext"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="mini-cal-grid" id="miniCalGrid"></div>
+                    </div>
+                </div>
+                <div class="sidebar-display-item admin-only hidden" data-display="console">
+                    <div class="sidebar-console">
+                        <div class="console-tabs">
+                            <button class="console-tab active" data-tab="security">Sicherheit</button>
+                            <button class="console-tab" data-tab="system">System</button>
+                            <button class="console-tab" data-tab="network">Netz</button>
+                        </div>
+                        <div class="console-content">
+                            <div class="console-logs active" id="securityConsoleLogs" data-tab="security">
+                                <div class="console-empty">Keine Warnmeldungen</div>
+                            </div>
+                            <div class="console-logs" id="systemConsoleLogs" data-tab="system">
+                                <div class="console-empty">System-Logs (Bald verfügbar)</div>
+                            </div>
+                            <div class="console-logs" id="networkConsoleLogs" data-tab="network">
+                                <div class="console-empty">Netzwerk-Logs (Bald verfügbar)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="uploadProgressPanel" class="upload-progress-panel hidden">
+            <div class="upload-progress-header">
+                <i class="fas fa-upload"></i>
+                <span id="uploadProgressText">Upload...</span>
+            </div>
+            <div class="upload-progress-bar-wrap">
+                <div id="uploadProgressBar" class="upload-progress-bar"></div>
+            </div>
+            <div class="upload-progress-file" id="uploadProgressFile">-</div>
+        </div>
+        <div id="downloadProgressPanel" class="upload-progress-panel hidden">
+            <div class="upload-progress-header">
+                <i class="fas fa-download"></i>
+                <span id="downloadProgressText">Download...</span>
+            </div>
+            <div class="upload-progress-bar-wrap">
+                <div id="downloadProgressBar" class="upload-progress-bar" style="background: var(--success)"></div>
+            </div>
+            <div class="upload-progress-file" id="downloadProgressFile">-</div>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="sidebar-item" data-section="records">
+                <i class="fas fa-folder"></i> Akten
+            </button>
+            <button class="sidebar-item" data-section="gallery">
+                <i class="fas fa-images"></i> Galerie
+            </button>
+            <button class="sidebar-item" data-section="karte">
+                <i class="fas fa-map-marked-alt"></i> Karte
+            </button>
+            <button class="sidebar-item" data-section="calendar">
+                <i class="fas fa-calendar-alt"></i> Kalender
+            </button>
+            <button class="sidebar-item" data-section="assistant">
+                <i class="fas fa-robot"></i> Assistent
+            </button>
+            <button class="sidebar-item" data-section="chat">
+                <i class="fas fa-comments"></i> Chat <span class="sidebar-chat-badge hidden" id="sidebarChatBadge">0</span>
+            </button>
+            <button class="sidebar-item" data-section="dashboard">
+                <i class="fas fa-tachometer-alt"></i> Statistik
+            </button>
+            <button class="sidebar-item admin-only hidden" data-section="formTemplates">
+                <i class="fas fa-file-invoice"></i> Formulare
+            </button>
+            <button class="sidebar-item" data-section="archive" data-perm="can_view_archive">
+                <i class="fas fa-archive"></i> Archiv
+            </button>
+            <button class="sidebar-item admin-only hidden" data-section="users">
+                <i class="fas fa-users-cog"></i> Benutzer
+            </button>
+            <button class="sidebar-item admin-only hidden" data-section="audit">
+                <i class="fas fa-history"></i> Logbuch
+            </button>
+            <button class="sidebar-item admin-only hidden" data-section="settings">
+                <i class="fas fa-cog"></i> Einstellungen
+            </button>
+        </nav>
+        <div class="sidebar-footer-toggle" id="sidebarFooterToggle" onclick="App.toggleSidebarFooter()">
+            <i class="fas fa-chevron-up" id="sidebarFooterToggleIcon"></i>
+        </div>
+        <div class="sidebar-footer collapsed" id="sidebarFooter">
+            <div class="user-name"><i class="fas fa-user"></i> <span id="sidebarUser">-</span></div>
+            <button class="btn btn-secondary w-100 mb-2" id="darkModeToggle" onclick="App.toggleDarkMode()">
+                <i class="fas fa-moon"></i> Dark Mode
+            </button>
+            <button class="btn btn-secondary w-100 mb-2" id="offlineModeBtn" onclick="App.toggleOfflineMode()">
+                <i class="fas fa-wifi"></i> <span id="offlineModeButtonText">Offline-Modus</span>
+            </button>
+            <button class="btn btn-secondary w-100 mb-2" id="syncButton" onclick="App.syncPendingRecords()">
+                <i class="fas fa-sync"></i> <span id="syncButtonText">Synchronisieren</span>
+            </button>
+            <button class="btn btn-secondary w-100" id="authButton" onclick="App.handleAuthButton()">
+                <i class="fas fa-sign-out-alt"></i> <span id="authButtonText">Abmelden</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="app-body">
+
+        <!-- Offline Mode Overlay -->
+        <div id="offlineModeOverlay" class="offline-mode-overlay hidden">
+            <div class="offline-overlay-content">
+                <i class="fas fa-wifi-slash"></i>
+                <h2>Nur im Online-Modus verfügbar</h2>
+            </div>
+        </div>
+
+        <!-- ── Statistik ── -->
+        <section id="dashboardSection" class="section">
+            <div class="p-4" id="dashboardContent">
+                <div class="stats-grid" id="dashStatsGrid">
+                    <!-- Cards werden via JS befuellt -->
+                </div>
+                <!-- Statistik Diagramme -->
+                <div class="stats-charts-grid">
+                    <div class="chart-container">
+                        <h4 class="chart-title">Status-Verteilung</h4>
+                        <div class="chart-wrapper">
+                            <canvas id="statusChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <h4 class="chart-title">Dateianhang-Typen</h4>
+                        <div class="chart-wrapper">
+                            <canvas id="fileTypeChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <h4 class="chart-title">Kategorie-Verteilung</h4>
+                        <div class="chart-wrapper">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <h4 class="chart-title">Farb-Markierungen</h4>
+                        <div class="chart-wrapper">
+                            <canvas id="colorChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <h4 class="chart-title">Speicherplatz (Partition)</h4>
+                        <div class="chart-wrapper">
+                            <canvas id="storageDiskChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <h4 class="chart-title">ORDAMA Speicherverbrauch</h4>
+                        <div class="chart-wrapper chart-wrapper-center">
+                            <div id="storageProgramInfo" class="text-center">
+                                <div class="storage-used-text" id="storageUsedText">-</div>
+                                <div class="storage-total-text">von <span id="storageTotalText">-</span> verfügbar</div>
+                            </div>
+                            <div class="storage-progress-wrap">
+                                <div id="storageProgressBar" class="storage-progress-bar" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container chart-container-full">
+                        <h4 class="chart-title">Aktivitäts-Trend (letzte 12 Monate)</h4>
+                        <div class="chart-wrapper" style="height: 300px;">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container chart-container-full">
+                        <h4 class="chart-title">Archivierungs-Trend (letzte 12 Monate)</h4>
+                        <div class="chart-wrapper" style="height: 300px;">
+                            <canvas id="archiveTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Records ── -->
+        <section id="recordsSection" class="section active">
+            <div class="records-header-sticky">
+                <!-- Mobile Filter Toggle -->
+                <button class="mobile-filter-toggle" id="mobileFilterToggle" type="button" onclick="App.toggleMobileFilters()">
+                    <i class="fas fa-filter"></i> Filter
+                </button>
+                <!-- Mehrfachauswahl-Leiste (erscheint bei Long-Press / Strg-Klick) -->
+                <div id="auswahlToolbar" class="auswahl-toolbar hidden" role="region" aria-label="Mehrfachauswahl">
+                    <div class="auswahl-info">
+                        <i class="fas fa-check-circle"></i> <span id="auswahlAnzahl">0 ausgewählt</span>
+                    </div>
+                    <div class="auswahl-aktionen">
+                        <div class="dropdown-bulk-actions">
+                            <button class="btn btn-primary" type="button" id="auswahlActionsBtn">
+                                <i class="fas fa-ellipsis-v"></i> Aktionen <i class="fas fa-chevron-down dropdown-chevron"></i>
+                            </button>
+                            <div class="dropdown-content" id="auswahlActionsDropdown">
+                                <button type="button" id="auswahlAlleBtn" onclick="App.umschaltenAlleSichtbarenAkten()">
+                                    <i class="fas fa-check-double"></i> Alle auswählen
+                                </button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" id="bulkNoteBtn" onclick="App.openBulkNoteModal()">
+                                    <i class="fas fa-sticky-note"></i> Vermerk setzen
+                                </button>
+                                <button type="button" id="bulkReminderBtn" onclick="App.bulkReminder()">
+                                    <i class="fas fa-calendar"></i> Termin setzen
+                                </button>
+                                <button type="button" id="bulkErinnerungBtn" onclick="App.bulkErinnerung()">
+                                    <i class="fas fa-bell"></i> Erinnerung setzen
+                                </button>
+                                <button type="button" id="bulkDeleteTerminBtn" onclick="App.bulkDeleteTermin()">
+                                    <i class="fas fa-calendar-times"></i> Termin löschen
+                                </button>
+                                <button type="button" id="bulkDeleteErinnerungBtn" onclick="App.bulkDeleteErinnerung()">
+                                    <i class="fas fa-bell-slash"></i> Erinnerung löschen
+                                </button>
+                                <div class="dropdown-divider"></div>
+                                <div class="dropdown-section">
+                                    <div class="dropdown-section-title">Kategorie</div>
+                                    <div id="bulkMoveDropdown">
+                                        <!-- Kategorien via JS -->
+                                    </div>
+                                    <button type="button" onclick="App.showCategoryModal()" class="text-primary">
+                                        <i class="fas fa-plus"></i> Neue Kategorie erstellen
+                                    </button>
+                                </div>
+                                <div class="dropdown-section">
+                                    <div class="dropdown-section-title">Status</div>
+                                    <button type="button" onclick="App.updateSelectedRecordsStatus('neutral')"><i class="fas fa-info-circle text-neutral"></i> Neutral</button>
+                                    <button type="button" onclick="App.updateSelectedRecordsStatus('offen')"><i class="fas fa-clock text-offen"></i> Offen</button>
+                                    <button type="button" onclick="App.updateSelectedRecordsStatus('bearbeitung')"><i class="fas fa-spinner text-bearbeitung"></i> In Bearbeitung</button>
+                                    <button type="button" onclick="App.updateSelectedRecordsStatus('erledigt')"><i class="fas fa-check-circle text-erledigt"></i> Erledigt</button>
+                                </div>
+                                <div class="dropdown-section">
+                                    <div class="dropdown-section-title">Farbe</div>
+                                    <button type="button" onclick="App.updateSelectedRecordsColor('')"><i class="fas fa-square color-option-default"></i> Standard</button>
+                                    <button type="button" onclick="App.updateSelectedRecordsColor('border-red')"><i class="fas fa-square color-option-red"></i> Rot</button>
+                                    <button type="button" onclick="App.updateSelectedRecordsColor('border-yellow')"><i class="fas fa-square color-option-yellow"></i> Gelb</button>
+                                    <button type="button" onclick="App.updateSelectedRecordsColor('border-green')"><i class="fas fa-square color-option-green"></i> Grün</button>
+                                    <button type="button" onclick="App.updateSelectedRecordsColor('border-blue')"><i class="fas fa-square color-option-blue"></i> Blau</button>
+                                    <button type="button" onclick="App.updateSelectedRecordsColor('border-magenta')"><i class="fas fa-square color-option-magenta"></i> Magenta</button>
+                                </div>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" id="bulkArchiveBtn" onclick="App.archiveSelected()">
+                                    <i class="fas fa-archive"></i> Archivieren
+                                </button>
+                                <button type="button" id="auswahlLoeschenBtn" onclick="App.auswahlLoeschen()" class="text-danger">
+                                    <i class="fas fa-trash"></i> Löschen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mobile-filter-content" id="mobileFilterContent">
+                    <div class="search-tabs">
+                        <button class="search-tab active" data-type="all"><i class="fas fa-search"></i> Alle</button>
+                        <button class="search-tab" data-type="similar"><i class="fas fa-link"></i> Ähnlich</button>
+                        <button class="search-tab" data-type="title"><i class="fas fa-heading"></i> Titel</button>
+                        <button class="search-tab" data-type="address"><i class="fas fa-map-marker-alt"></i> Adressen</button>
+                        <button class="search-tab" data-type="content"><i class="fas fa-align-left"></i> Text</button>
+                        <button class="search-tab" data-type="attachments"><i class="fas fa-paperclip"></i> Anhänge</button>
+                        <button class="search-tab" data-type="ocr"><i class="fas fa-file-lines"></i> OCR</button>
+                    </div>
+                    <div class="search-bar">
+                        <input type="text" id="recordsSearch" class="form-control" placeholder=" durchsuchen..." autocomplete="off">
+                        <button class="btn btn-primary search-btn" id="searchClearBtn" onclick="App.clearSearch()" title="Durchsuchen"><i class="fas fa-search"></i></button>
+                        <div class="header-reminder-btn-container" style="position: relative;">
+                            <button class="btn btn-primary auswahl-icon-btn" id="reminderBtn" aria-label="Erinnerungn" title="Erinnerungen" onclick="App.toggleReminderPanel()">
+                                <i class="fas fa-bell"></i>
+                                <span class="reminder-badge hidden" id="reminderBadge">0</span>
+                            </button>
+                            <div class="reminder-panel hidden" id="reminderPanel" style="top: 100%; right: 0;">
+                                <div class="reminder-panel-header">
+                                    <h3>Heutige Erinnerungn</h3>
+                                </div>
+                                <div class="reminder-list" id="reminderList">
+                                    <!-- Erinnerungn werden via JS befüllt -->
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary auswahl-icon-btn" id="auswahlStartBtn" type="button" title="Mehrere Akten auswählen" onclick="App.aktiviereAuswahlmodus()">
+                            <i class="fas fa-check-square"></i>
+                        </button>
+                        <button class="btn btn-secondary auswahl-icon-btn hidden" id="auswahlFertigBtn" type="button" title="Abbrechen">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="filters-row">
+                        <div class="custom-filter-dropdown" id="recordFilterDropdown">
+                            <input type="hidden" id="recordFilter" value="recent30">
+                            <button type="button" class="dropdown-toggle">
+                                <i class="fas fa-filter"></i> Neueste (30 Tage)
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="all">Alle</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="status_neutral">Neutral</button>
+                                <button type="button" data-value="status_offen">Offen</button>
+                                <button type="button" data-value="status_bearbeitung">In Bearbeitung</button>
+                                <button type="button" data-value="status_erledigt">Erledigt</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="has_termine">Alle Termine</button>
+                                <button type="button" data-value="has_my_termine">Alle meine Termine</button>
+                                <button type="button" data-value="expired_termine">Abgelaufene Termine</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="has_reminders">Alle Erinnerungen</button>
+                                <button type="button" data-value="has_my_reminders">Alle meine Erinnerungen</button>
+                                <button type="button" data-value="expired_erinnerungen">Abgelaufene Erinnerungen</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="recent">Neueste (7 Tage)</button>
+                                <button type="button" data-value="recent30">Neueste (30 Tage)</button>
+                                <button type="button" data-value="recent365">Neueste (365 Tage)</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="color_standard">Farbe: Standard</button>
+                                <button type="button" data-value="color_red">Farbe: Rot</button>
+                                <button type="button" data-value="color_yellow">Farbe: Gelb</button>
+                                <button type="button" data-value="color_green">Farbe: Grün</button>
+                                <button type="button" data-value="color_blue">Farbe: Blau</button>
+                                <button type="button" data-value="color_magenta">Farbe: Magenta</button>
+                            </div>
+                        </div>
+
+                        <div class="custom-filter-dropdown" id="recordSortDropdown">
+                            <input type="hidden" id="recordSort" value="created_desc">
+                            <button type="button" class="dropdown-toggle">
+                                <i class="fas fa-sort-amount-down"></i> Neueste
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="created_desc">Neueste</button>
+                                <button type="button" data-value="created_asc">Älteste</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="title_asc">Titel A-Z</button>
+                                <button type="button" data-value="title_desc">Titel Z-A</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="updated_desc">Zuletzt aktualisiert</button>
+                                <button type="button" data-value="updated_asc">Älteste Aktualisierung</button>
+                            </div>
+                        </div>
+
+                        <!-- Kategorien Filter -->
+                        <div class="category-filter-wrap">
+                            <div class="custom-filter-dropdown flex-1" id="recordCategoryFilterDropdown">
+                                <input type="hidden" id="recordCategoryFilter" value="">
+                                <button type="button" class="dropdown-toggle">
+                                    <i class="fas fa-tags"></i> Alle Kategorien
+                                </button>
+                                <div class="dropdown-menu" id="recordCategoryFilterMenu">
+                                    <button type="button" data-value="">Alle Kategorien</button>
+                                    <!-- Kategorien via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="recordsList" class="records-grid"></div>
+            <div id="recordsPagination" class="pagination-container hidden">
+                <button class="btn btn-secondary" onclick="App.loadMoreRecords()">
+                    <i class="fas fa-chevron-down"></i> Mehr Akten laden
+                </button>
+            </div>
+        </section>
+
+        <!-- ── Archive ── -->
+        <section id="archiveSection" class="section">
+            <div class="records-header-sticky">
+                <!-- Mobile Filter Toggle -->
+                <button class="mobile-filter-toggle" id="archiveMobileFilterToggle" type="button" onclick="App.toggleArchiveMobileFilters()">
+                    <i class="fas fa-filter"></i> Filter
+                </button>
+                <!-- Mehrfachauswahl-Leiste für Archiv -->
+                <div id="archiveAuswahlToolbar" class="auswahl-toolbar hidden" role="region" aria-label="Mehrfachauswahl Archiv">
+                    <div class="auswahl-info">
+                        <i class="fas fa-check-circle"></i> <span id="archiveAuswahlAnzahl">0 ausgewählt</span>
+                    </div>
+                    <div class="auswahl-aktionen">
+                        <div class="dropdown-bulk-actions">
+                            <button class="btn btn-primary" type="button" id="archiveAuswahlActionsBtn">
+                                <i class="fas fa-ellipsis-v"></i> Aktionen <i class="fas fa-chevron-down dropdown-chevron"></i>
+                            </button>
+                            <div class="dropdown-content" id="archiveAuswahlActionsDropdown">
+                                <button type="button" id="archiveAuswahlAlleBtn" onclick="App.umschaltenAlleSichtbarenArchivAkten()">
+                                    <i class="fas fa-check-double"></i> Alle auswählen
+                                </button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" id="archiveRestoreBtn" onclick="App.archiveRestoreSelected()">
+                                    <i class="fas fa-undo"></i> Wiederherstellen
+                                </button>
+                                <button type="button" id="archiveLoeschenBtn" onclick="App.archiveDeleteSelected()" class="text-danger">
+                                    <i class="fas fa-trash"></i> Löschen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mobile-filter-content" id="archiveMobileFilterContent">
+                    <div class="search-tabs">
+                        <button class="search-tab active" data-type="all"><i class="fas fa-search"></i> Alle</button>
+                        <button class="search-tab" data-type="title"><i class="fas fa-heading"></i> Titel</button>
+                        <button class="search-tab" data-type="address"><i class="fas fa-map-marker-alt"></i> Adressen</button>
+                        <button class="search-tab" data-type="content"><i class="fas fa-align-left"></i> Text</button>
+                        <button class="search-tab" data-type="attachments"><i class="fas fa-paperclip"></i> Anhänge</button>
+                    </div>
+                    <div class="search-bar">
+                        <input type="text" id="archiveSearch" class="form-control" placeholder="Archiv durchsuchen..." autocomplete="off">
+                        <button class="btn btn-primary search-btn" id="archiveSearchClearBtn" onclick="App.clearArchiveSearch()" title="Durchsuchen"><i class="fas fa-search"></i></button>
+                        <button class="btn btn-primary auswahl-icon-btn" id="archiveAuswahlStartBtn" type="button" title="Mehrere Akten auswählen" onclick="App.aktiviereArchivAuswahlmodus()">
+                            <i class="fas fa-check-square"></i>
+                        </button>
+                        <button class="btn btn-secondary auswahl-icon-btn hidden" id="archiveAuswahlFertigBtn" type="button" title="Abbrechen" onclick="App.deaktiviereArchivAuswahlmodus(true)">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="filters-row">
+                        <div class="custom-filter-dropdown" id="archiveFilterDropdown">
+                            <input type="hidden" id="archiveFilter" value="all">
+                            <button type="button" class="dropdown-toggle">
+                                <i class="fas fa-filter"></i> Alle
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="all">Alle</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="status_neutral">Neutral</button>
+                                <button type="button" data-value="status_offen">Offen</button>
+                                <button type="button" data-value="status_bearbeitung">In Bearbeitung</button>
+                                <button type="button" data-value="status_erledigt">Erledigt</button>
+                            </div>
+                        </div>
+
+                        <div class="custom-filter-dropdown" id="archiveSortDropdown">
+                            <input type="hidden" id="archiveSort" value="updated_desc">
+                            <button type="button" class="dropdown-toggle">
+                                <i class="fas fa-sort-amount-down"></i> Zuletzt aktualisiert
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="updated_desc">Zuletzt aktualisiert</button>
+                                <button type="button" data-value="updated_asc">Älteste Aktualisierung</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="title_asc">Titel A-Z</button>
+                                <button type="button" data-value="title_desc">Titel Z-A</button>
+                            </div>
+                        </div>
+
+                        <!-- Kategorien Filter -->
+                        <div class="category-filter-wrap">
+                            <div class="custom-filter-dropdown flex-1" id="archiveCategoryFilterDropdown">
+                                <input type="hidden" id="archiveCategoryFilter" value="">
+                                <button type="button" class="dropdown-toggle">
+                                    <i class="fas fa-tags"></i> Alle Kategorien
+                                </button>
+                                <div class="dropdown-menu" id="archiveCategoryFilterMenu">
+                                    <button type="button" data-value="">Alle Kategorien</button>
+                                    <!-- Kategorien via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="archiveList" class="records-grid"></div>
+            <div id="archivePagination" class="pagination-container hidden">
+                <button class="btn btn-secondary" onclick="App.loadMoreArchiveRecords()">
+                    <i class="fas fa-chevron-down"></i> Mehr Archiv-Akten laden
+                </button>
+            </div>
+        </section>
+
+        <!-- ── Calendar ── -->
+        <section id="calendarSection" class="section">
+            <div class="records-header-sticky">
+                <div class="calendar-header">
+                    <button class="cal-nav" onclick="App.changeMonth(-1)"><i class="fas fa-chevron-left"></i></button>
+                    <h3 id="calMonth">-</h3>
+                    <button class="cal-nav" onclick="App.changeMonth(1)"><i class="fas fa-chevron-right"></i></button>
+                </div>
+                <div id="calendarGrid" class="calendar-grid"></div>
+            </div>
+            <div id="calendarReminders" class="records-grid"></div>
+        </section>
+
+        <!-- ── Assistant ── -->
+        <section id="assistantSection" class="section">
+            <div class="assistant-container">
+                <div class="assistant-header">
+                    <h3><i class="fas fa-robot"></i> Assistent</h3>
+                    <div class="assistant-header-buttons">
+                        <button class="btn btn-secondary" onclick="App.assistantShowHelp()">
+                            <i class="fas fa-question-circle"></i> Hilfe
+                        </button>
+                        <button class="btn btn-secondary" onclick="App.assistantClearChat()">
+                            <i class="fas fa-trash"></i> Chat löschen
+                        </button>
+                    </div>
+                </div>
+                <div id="assistantChat" class="assistant-chat">
+                </div>
+                <div class="assistant-input-container">
+                    <input type="text" id="assistantInput" class="form-control" placeholder="Gib einen Befehl ein..." onkeydown="if(event.key === 'Enter') App.assistantSendCommand()" autocomplete="off">
+                    <button class="btn btn-primary" onclick="App.assistantSendCommand()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Chat ── -->
+        <section id="chatSection" class="section">
+            <div class="chat-container">
+                <div class="chat-sidebar">
+                    <div class="chat-tabs">
+                        <button class="chat-tab active" data-tab="rooms" onclick="App.chatSwitchTab('rooms')">
+                            Räume
+                            <span class="chat-tab-badge" id="roomsTabBadge"></span>
+                        </button>
+                        <button class="chat-tab" data-tab="conversations" onclick="App.chatSwitchTab('conversations')">
+                            Privat
+                            <span class="chat-tab-badge" id="conversationsTabBadge"></span>
+                        </button>
+                    </div>
+                    <div class="chat-sidebar-header">
+                        <h3 id="chatSidebarTitle"><i class="fas fa-comments"></i> Chat-Räume</h3>
+                    </div>
+                    <div id="chatRoomsList" class="chat-rooms-list">
+                        <!-- Chat-Räume werden hier geladen -->
+                    </div>
+                    <div id="chatConversationsList" class="chat-rooms-list hidden">
+                        <!-- Alle Benutzer werden hier geladen -->
+                    </div>
+                </div>
+                <div class="chat-main">
+                    <div class="chat-header">
+                        <h3 id="chatRoomTitle"><i class="fas fa-comments"></i> Wähle einen Chat-Raum</h3>
+                        <div class="chat-header-actions">
+                            <button class="btn btn-secondary hidden" id="chatClearChatBtn" onclick="App.chatClearConversation()">
+                                <i class="fas fa-eraser"></i> Chat löschen
+                            </button>
+                            <button class="btn btn-secondary hidden" id="chatDeleteRoomBtn" onclick="App.chatDeleteRoom()">
+                                <i class="fas fa-trash"></i> Raum löschen
+                            </button>
+                        </div>
+                    </div>
+                    <div id="chatMessages" class="chat-messages">
+                        <div class="chat-empty-state">
+                            <i class="fas fa-comments"></i>
+                            <p>Wähle einen Chat-Raum aus der Liste</p>
+                        </div>
+                    </div>
+                    <div class="chat-input-container hidden" id="chatInputContainer">
+                        <div class="chat-file-upload">
+                            <input type="file" id="chatFileInput" class="hidden" onchange="App.chatHandleFileSelect(event)" accept="image/*">
+                            <button class="btn btn-secondary" onclick="document.getElementById('chatFileInput').click()">
+                                <i class="fas fa-paperclip"></i>
+                            </button>
+                        </div>
+                        <div id="chatImagePreview" class="chat-image-preview hidden">
+                            <img id="chatPreviewImage" src="" alt="Vorschau">
+                            <button class="chat-preview-remove" onclick="App.chatRemoveImagePreview()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <textarea id="chatInput" class="form-control" placeholder="Schreibe eine Nachricht..." rows="2" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); App.chatSendMessage(); }" autocomplete="off"></textarea>
+                        <button class="btn btn-secondary" onclick="App.chatSendMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Gallery ── -->
+        <section id="gallerySection" class="section">
+            <div class="records-header-sticky">
+                <!-- Mobile Filter Toggle -->
+                <button class="mobile-filter-toggle" id="galleryMobileFilterToggle" type="button" onclick="App.toggleGalleryMobileFilters()">
+                    <i class="fas fa-filter"></i> Filter
+                </button>
+                <!-- Mehrfachauswahl-Leiste (erscheint bei Long-Press / Strg-Klick) -->
+                <div id="galleryAuswahlToolbar" class="auswahl-toolbar hidden" role="region" aria-label="Mehrfachauswahl">
+                    <div class="auswahl-info">
+                        <i class="fas fa-check-circle"></i> <span id="galleryAuswahlAnzahl">0 ausgewählt</span>
+                    </div>
+                    <div class="auswahl-aktionen">
+                        <div class="dropdown-bulk-actions">
+                            <button class="btn btn-primary" type="button" id="galleryAuswahlActionsBtn">
+                                <i class="fas fa-ellipsis-v"></i> Aktionen <i class="fas fa-chevron-down dropdown-chevron"></i>
+                            </button>
+                            <div class="dropdown-content" id="galleryAuswahlActionsDropdown">
+                                <button type="button" id="galleryAuswahlAlleBtn" onclick="App.umschaltenAlleSichtbarenAkten()">
+                                    <i class="fas fa-check-double"></i> Alle auswählen
+                                </button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" id="galleryAuswahlLoeschenBtn" onclick="App.deleteSelectedGalleryMedia()" class="text-danger">
+                                    <i class="fas fa-trash"></i> Löschen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mobile-filter-content" id="galleryMobileFilterContent">
+                    <div class="search-tabs">
+                        <button class="search-tab active" data-type="all"><i class="fas fa-search"></i> Alle</button>
+                        <button class="search-tab" data-type="image"><i class="fas fa-image"></i> Bilder</button>
+                        <button class="search-tab" data-type="video"><i class="fas fa-video"></i> Videos</button>
+                        <button class="search-tab" data-type="audio"><i class="fas fa-music"></i> Audio</button>
+                    </div>
+                    <div class="search-bar">
+                        <input type="text" id="gallerySearch" class="form-control" placeholder=" durchsuchen..." autocomplete="off">
+                        <button class="btn btn-primary search-btn" id="gallerySearchClearBtn" onclick="App.handleGallerySearchClick()" title="Durchsuchen"><i class="fas fa-search"></i></button>
+                        <button class="btn btn-primary auswahl-icon-btn" id="galleryAuswahlStartBtn" type="button" title="Mehrere Bilder auswählen" onclick="App.aktiviereAuswahlmodus()">
+                            <i class="fas fa-check-square"></i>
+                        </button>
+                        <button class="btn btn-secondary auswahl-icon-btn hidden" id="galleryAuswahlFertigBtn" type="button" title="Abbrechen" onclick="App.deaktiviereAuswahlmodus(true)">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="filters-row">
+                        <div class="custom-filter-dropdown" id="galleryFilterDropdown">
+                            <input type="hidden" id="galleryFilter" value="all">
+                            <button type="button" class="dropdown-toggle">
+                                <i class="fas fa-filter"></i> Alle
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="all">Alle</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="type_image">Bilder</button>
+                                <button type="button" data-value="type_video">Video</button>
+                                <button type="button" data-value="type_audio">Audio</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="status_neutral">Neutral</button>
+                                <button type="button" data-value="status_offen">Offen</button>
+                                <button type="button" data-value="status_bearbeitung">In Bearbeitung</button>
+                                <button type="button" data-value="status_erledigt">Erledigt</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="has_reminders">Alle Erinnerungn</button>
+                                <button type="button" data-value="has_my_reminders">Alle meine Erinnerungn</button>
+                                <button type="button" data-value="expired_erinnerungn">Abgelaufene Erinnerungn</button>
+                                <button type="button" data-value="expired_termine">Abgelaufene Termine</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="recent">Neueste (7 Tage)</button>
+                                <button type="button" data-value="recent30">Neueste (30 Tage)</button>
+                                <button type="button" data-value="recent365">Neueste (365 Tage)</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="color_standard">Farbe: Standard</button>
+                                <button type="button" data-value="color_red">Farbe: Rot</button>
+                                <button type="button" data-value="color_yellow">Farbe: Gelb</button>
+                                <button type="button" data-value="color_green">Farbe: Grün</button>
+                                <button type="button" data-value="color_blue">Farbe: Blau</button>
+                                <button type="button" data-value="color_magenta">Farbe: Magenta</button>
+                            </div>
+                        </div>
+
+                        <div class="custom-filter-dropdown" id="gallerySortDropdown">
+                            <input type="hidden" id="gallerySort" value="newest">
+                            <button type="button" class="dropdown-toggle">
+                                <i class="fas fa-sort-amount-down"></i> Neueste
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="newest">Neueste</button>
+                                <button type="button" data-value="oldest">Älteste</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="name_asc">Name: A-Z</button>
+                                <button type="button" data-value="name_desc">Name: Z-A</button>
+                                <div class="dropdown-divider"></div>
+                                <button type="button" data-value="size_desc">Größe: Größte zuerst</button>
+                                <button type="button" data-value="size_asc">Größe: Kleinste zuerst</button>
+                            </div>
+                        </div>
+
+                        <div class="category-filter-wrap">
+                            <div class="custom-filter-dropdown flex-1" id="galleryCategoryDropdown">
+                                <input type="hidden" id="galleryCategory" value="">
+                                <button type="button" class="dropdown-toggle">
+                                    <i class="fas fa-tags"></i> Alle Kategorien
+                                </button>
+                                <div class="dropdown-menu" id="galleryCategoryMenu">
+                                    <button type="button" data-value="">Alle Kategorien</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="galleryGrid" class="records-grid"></div>
+            <div id="galleryEmpty" class="text-center text-muted" style="padding: 40px;">
+                <i class="fas fa-images" style="font-size: 48px; color: #ccc; margin-bottom: 16px;"></i>
+                <p>Keine Medien vorhanden</p>
+            </div>
+            <div id="galleryPagination" class="pagination-container hidden"></div>
+        </section>
+
+        <!-- ── Karte ── -->
+        <section id="karteSection" class="section">
+            <div class="karte-section-wrap">
+                <div class="karte-wrapper">
+                    <div class="karte-canvas-wrap">
+                        <canvas id="karteCanvas" class="karte-canvas" aria-label="Kartenansicht"></canvas>
+                        <div class="karte-controls" aria-label="Kartensteuerung">
+                            <!-- Zoom (links) -->
+                            <div class="karte-zoom-group">
+                                <button class="btn btn-secondary karte-ctrl-btn" id="karteZoomInBtn" type="button" title="Zoomen +">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button class="btn btn-secondary karte-ctrl-btn" id="karteZoomOutBtn" type="button" title="Zoomen -">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                            </div>
+
+                            <!-- Navigation Arrows (rechts daneben) -->
+                            <div class="karte-nav-grid">
+                                <button class="btn btn-secondary karte-ctrl-btn nav-up" id="karteNavUpBtn" type="button" title="Nach oben">
+                                    <i class="fas fa-chevron-up"></i>
+                                </button>
+                                <button class="btn btn-secondary karte-ctrl-btn nav-left" id="karteNavLeftBtn" type="button" title="Nach links">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <button class="btn btn-secondary karte-ctrl-btn nav-right" id="karteNavRightBtn" type="button" title="Nach rechts">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                                <button class="btn btn-secondary karte-ctrl-btn nav-down" id="karteNavDownBtn" type="button" title="Nach unten">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Users ── -->
+        <section id="usersSection" class="section">
+            <div class="scrollable-content">
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th class="table-header-width-20">Benutzername</th>
+                                <th class="table-header-width-15">Rolle</th>
+                                <th class="table-header-width-15">Online-Status</th>
+                                <th class="table-header-width-20 table-header-center">Rechte</th>
+                                <th class="table-header-width-15">Status</th>
+                                <th class="table-header-width-15 table-header-center">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Logbuch (Audit) ── -->
+        <section id="auditSection" class="section">
+            <div class="scrollable-content scrollable-content-large">
+                <div id="auditLogContent" class="audit-log-content">
+                    Lade Logbuch...
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Formular ── -->
+        <section id="formTemplatesSection" class="section">
+            <div class="scrollable-content scrollable-content-large">
+                <div class="flex justify-between items-center mb-4">
+                    <h3>Formular verwalten</h3>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Erstellt am</th>
+                                <th class="table-header-center">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="formTemplatesTableBody">
+                            <!-- Wird via JS befüllt -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Settings ── -->
+        <section id="settingsSection" class="section">
+            <div id="settingsForm" class="scrollable-content scrollable-content-large">
+                <div class="form-group">
+                    <label>Server-/Firmenname</label>
+                    <input type="text" id="settingServerName" class="form-control" placeholder="z.B. privat" maxlength="50" autocomplete="off">
+                    <small class="text-muted">Wird auf dem Login-Screen unter dem Logo angezeigt. Hilft bei der Unterscheidung mehrerer Server-Instanzen.</small>
+                </div>
+                <div class="form-group">
+                    <label>Max. Dateigröße (MB)</label>
+                    <input type="number" id="settingMaxSize" class="form-control" min="1" max="10240" value="50">
+                    <small class="text-muted">Maximaler Upload pro Datei (z.B. 5000 MB für ca. 5 GB)</small>
+                </div>
+
+                <div class="settings-collapsible">
+                    <button class="collapsible-header" onclick="document.getElementById('networkSettingsPanel').classList.toggle('hidden')">
+                        <i class="fas fa-network-wired"></i> Netzwerkeinstellungen
+                        <i class="fas fa-chevron-down collapsible-icon"></i>
+                    </button>
+                </div>
+                
+                <div id="networkSettingsPanel" class="hidden mt-4">
+                    <h4 class="mb-3">Netzwerkeinstellungen anpassen</h4>
+                    <div class="form-group">
+                        <label>Server-Host</label>
+                        <select id="settingHost" class="form-control">
+                            <option value="127.0.0.1">Nur dieses Gerät</option>
+                            <option value="0.0.0.0">Lokales Netzwerk (WLAN/LAN)</option>
+                        </select>
+                        <small class="text-muted">Nur dieses Gerät = Nur auf dem NUC selbst | Lokales Netzwerk = Von anderen Geräten im WLAN/LAN erreichbar</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Server-Port</label>
+                        <input type="number" id="settingPort" class="form-control" min="1024" max="65535" value="8080">
+                        <small class="text-muted">Standard: 8080. Aenderung erfordert Neustart.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Sicherheits-Schlüssel (SECRET_KEY)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="password" id="settingSecretKey" class="form-control" placeholder="Automatisch generiert" style="flex: 1;">
+                            <button type="button" id="toggleSecretKey" class="btn btn-secondary" onclick="App.toggleSecretKeyVisibility()" style="padding: 0.5rem 0.75rem;">
+                                <i class="fas fa-eye" id="secretKeyIcon"></i>
+                            </button>
+                        </div>
+                        <small class="text-warning" style="font-weight: 500;">⚠️ Achtung: Wenn Sie diesen Schlüssel ändern, werden alle bestehenden Sessions ungültig. Offline-Akten können dann nicht mehr synchronisiert werden!</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Max. Login-Versuche</label>
+                        <input type="number" id="settingMaxLoginAttempts" class="form-control" min="1" max="20" value="5">
+                        <small class="text-muted">Anzahl fehlgeschlagener Login-Versuche vor Sperrung</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Sperrzeit bei zu vielen Fehlversuchen (Minuten)</label>
+                        <input type="number" id="settingRateLimitWindow" class="form-control" min="1" max="1440" value="15">
+                        <small class="text-muted">Wartezeit nach zu vielen fehlgeschlagenen Login-Versuchen</small>
+                    </div>
+                    <div class="form-group">
+                        <label>IP-Whitelist</label>
+                        <select id="settingIpWhitelistMode" class="form-control mb-2" onchange="App.toggleIpWhitelistMode()">
+                            <option value="none">Keine Whitelist (alle Verbindungen erlaubt)</option>
+                            <option value="cloudflare">Service/Tunnel IPs</option>
+                            <option value="custom">Benutzerdefinierte IPs</option>
+                        </select>
+                        <textarea id="settingCloudflareIps" class="form-control hidden" rows="4" placeholder="Service/Tunnel IPs werden automatisch eingetragen"></textarea>
+                        <div id="customIpsContainer" class="hidden">
+                            <textarea id="settingCustomIps" class="form-control mb-2" rows="4" placeholder="Eine IP-Adresse oder CIDR-Range pro Zeile&#10;Beispiel:&#10;192.168.1.0/24&#10;10.0.0.1"></textarea>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="App.addCurrentIpToWhitelist()">
+                                    <i class="fas fa-plus"></i> Aktuelle IP
+                                </button>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="App.addAllActiveIpsToWhitelist()">
+                                    <i class="fas fa-users"></i> Alle aktiven IPs
+                                </button>
+                            </div>
+                        </div>
+                        <small class="text-muted" id="ipWhitelistHelp">Für lokale Netzwerke: "Keine Whitelist" wählen. Für Cloudflare Tunnel oder ähnliche Dienste: "Service/Tunnel IPs" wählen. Für eigene IPs: "Benutzerdefinierte IPs" wählen.</small>
+                    </div>
+                    <div class="form-group mt-3">
+                        <label>Anfragelimit pro Benutzer (Schutz vor Überlastung)</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="checkbox" id="settingRequestLimitEnabled" style="width: 20px; height: 20px; cursor: pointer;">
+                            <input type="number" id="settingMaxRequestsPerMinute" class="form-control" min="10" max="1000" value="500" style="flex: 1;">
+                            <input type="number" id="settingBlockDurationSeconds" class="form-control" min="10" max="3600" value="60" style="width: 100px;" placeholder="Sekunden">
+                        </div>
+                        <small class="text-muted">Aktivieren: Schützt das System vor Überlastung durch zu viele Anfragen pro Benutzer. Limit: Max. Anfragen pro Minute pro Benutzer. Sperrdauer: Sekunden.</small>
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <div class="settings-collapsible">
+                    <button class="collapsible-header" onclick="document.getElementById('archiveSettingsPanel').classList.toggle('hidden')">
+                        <i class="fas fa-archive"></i> Archivierung
+                        <i class="fas fa-chevron-down collapsible-icon"></i>
+                    </button>
+                </div>
+
+                <div id="archiveSettingsPanel" class="hidden mt-4">
+                    <h4 class="mb-3">Automatische Archivierung</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingAutoArchive" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingAutoArchive').click()">Automatische Archivierung aktivieren</span>
+                        </div>
+                        <small class="text-muted">Archiviert Akten automatisch basierend auf Alter und Nutzung</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Mindestalter der Akte</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="number" id="settingAgeValue" class="form-control" min="0" max="3650" value="365" style="flex: 1;">
+                            <select id="settingAgeUnit" class="form-control" style="width: 120px;">
+                                <option value="days">Tage</option>
+                                <option value="months">Monate</option>
+                                <option value="years">Jahre</option>
+                            </select>
+                        </div>
+                        <small class="text-muted">Mindestalter bevor eine Akte archiviert werden kann</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Nicht genutzt seit</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="number" id="settingUnusedValue" class="form-control" min="0" max="3650" value="180" style="flex: 1;">
+                            <select id="settingUnusedUnit" class="form-control" style="width: 120px;">
+                                <option value="days">Tage</option>
+                                <option value="months">Monate</option>
+                                <option value="years">Jahre</option>
+                            </select>
+                        </div>
+                        <small class="text-muted">Zeit seit letzter Nutzung (updated_at) bevor archiviert wird</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Ausführungsintervall</label>
+                        <select id="settingRunInterval" class="form-control">
+                            <option value="daily">Täglich</option>
+                            <option value="weekly">Wöchentlich</option>
+                            <option value="monthly">Monatlich</option>
+                            <option value="yearly">Jährlich</option>
+                        </select>
+                        <small class="text-muted">Wie oft wird die automatische Archivierung ausgeführt</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Archivierungs-Zeitplan</label>
+                        <select id="settingArchiveScheduleMode" class="form-control">
+                            <option value="always">Immer ausführen</option>
+                            <option value="scheduled">Nur zu bestimmten Zeiten</option>
+                        </select>
+                        <small class="text-muted">Legt fest, wann die automatische Archivierung ausgeführt wird.</small>
+                    </div>
+                    <div class="form-group" id="archiveScheduleTimeGroup" style="display: none;">
+                        <label>Arbeitszeitfenster (von - bis)</label>
+                        <div class="d-flex gap-2">
+                            <input type="time" id="settingArchiveScheduleStart" class="form-control" value="20:00">
+                            <span class="align-self-center">bis</span>
+                            <input type="time" id="settingArchiveScheduleEnd" class="form-control" value="06:00">
+                        </div>
+                        <small class="text-muted">Archivierung wird nur in diesem Zeitfenster ausgeführt. Z.B. 20:00 bis 06:00 für Nachtbetrieb.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Kriterien-Logik</label>
+                        <select id="settingArchiveLogic" class="form-control">
+                            <option value="and">UND (beide Kriterien müssen zutreffen)</option>
+                            <option value="or">ODER (eines der Kriterien reicht)</option>
+                        </select>
+                        <small class="text-muted">Wie werden Alter und Inaktivität kombiniert</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Letzte Ausführung</label>
+                        <input type="text" id="settingLastRun" class="form-control" readonly>
+                        <small class="text-muted">Zeitpunkt der letzten automatischen Archivierung</small>
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <div class="settings-collapsible">
+                    <button class="collapsible-header" onclick="document.getElementById('similaritySettingsPanel').classList.toggle('hidden')">
+                        <i class="fas fa-search"></i> Ähnlichkeitssuche/Dubletten/Validierung
+                        <i class="fas fa-chevron-down collapsible-icon"></i>
+                    </button>
+                </div>
+                
+                <div id="similaritySettingsPanel" class="hidden mt-4">
+                    <h4 class="mb-3">Ähnlichkeitssuche/Dubletten anpassen</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingSimilarityEnabled" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingSimilarityEnabled').click()">Ähnlichkeitssuche aktivieren</span>
+                        </div>
+                        <small class="text-muted">Aktiviert die Ähnlichkeitssuche und Dubletten-Erkennung</small>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingPlzValidation" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingPlzValidation').click()">Postleitzahl-Validierung</span>
+                        </div>
+                        <small class="text-muted">Validiert deutsche Postleitzahlen beim Erfassen von Adressen</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Dubletten-Kandidaten-Limit</label>
+                        <input type="number" id="settingDuplicateCandidateLimit" class="form-control" min="10" max="1000" step="10">
+                        <small class="text-muted">Maximale Anzahl an Kandidaten für Dublettensuche (Standard: 100). Höhere Werte = bessere Ergebnisse, aber langsamer.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Dubletten-Schwellenwert (%)</label>
+                        <input type="number" id="settingDuplicateThreshold" class="form-control" min="0" max="100" step="5">
+                        <small class="text-muted">Schwellenwert für inhaltliche Ähnlichkeit in Prozent (0-100, Standard: 50%). Exakte Titel-Gleichheit und Wort-Permutationen werden immer erkannt. Höhere Werte = strengere Erkennung.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Ähnlichkeit-Kandidaten-Limit</label>
+                        <input type="number" id="settingSimilarityCandidateLimit" class="form-control" min="10" max="2000" step="10">
+                        <small class="text-muted">Maximale Anzahl an Kandidaten für Ähnlichkeitssuche (Standard: 200). Höhere Werte = bessere Ergebnisse, aber langsamer.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Maximale Ergebnisse</label>
+                        <input type="number" id="settingSimilarityLimit" class="form-control" min="5" max="100">
+                        <small class="text-muted">Maximale Anzahl an Ergebnissen bei der Ähnlichkeitssuche (Standard: 20)</small>
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <div class="settings-collapsible">
+                    <button class="collapsible-header" onclick="document.getElementById('ocrSettingsPanel').classList.toggle('hidden')">
+                        <i class="fas fa-font"></i> OCR-Einstellungen
+                        <i class="fas fa-chevron-down collapsible-icon"></i>
+                    </button>
+                </div>
+
+                <div id="ocrSettingsPanel" class="hidden mt-4">
+                    <h4 class="mb-3">OCR-Einstellungen anpassen</h4>
+                    <div class="form-group">
+                        <label>OCR aktivieren</label>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingOcrEnabled" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingOcrEnabled').click()">OCR aktivieren</span>
+                        </div>
+                        <small class="text-muted">Automatische Texterkennung für PDF- und Bilddateien</small>
+                    </div>
+                    <div class="form-group">
+                        <label>OCR-Sprache</label>
+                        <select id="settingOcrLang" class="form-control">
+                            <option value="deu+eng">Deutsch + Englisch</option>
+                            <option value="deu">Nur Deutsch</option>
+                            <option value="eng">Nur Englisch</option>
+                        </select>
+                        <small class="text-muted">Sprachen für die Texterkennung</small>
+                    </div>
+                    <div class="form-group">
+                        <label>OCR-Modus (OEM)</label>
+                        <select id="settingOcrOem" class="form-control">
+                            <option value="3">Legacy + LSTM (Empfohlen)</option>
+                            <option value="1">LSTM nur</option>
+                            <option value="0">Legacy nur</option>
+                        </select>
+                        <small class="text-muted">OCR-Engine-Modus</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Seiten-Modus (PSM)</label>
+                        <select id="settingOcrPsm" class="form-control">
+                            <option value="6">Einheitlicher Textblock (Gescannte Dokumente)</option>
+                            <option value="3">Volltext (Standard)</option>
+                            <option value="1">Automatisch</option>
+                        </select>
+                        <small class="text-muted">Seiten-Segmentierungs-Modus</small>
+                    </div>
+                    <div class="form-group">
+                        <label>DPI</label>
+                        <input type="number" id="settingOcrDpi" class="form-control" min="150" max="600" step="50" value="300">
+                        <small class="text-muted">Bildauflösung für OCR (Standard: 300)</small>
+                    </div>
+                    <hr style="margin: 16px 0; border: none; border-top: 1px solid #dee2e6;">
+                    <h5 class="mb-3">Zeitplan & Performance</h5>
+                    <div class="form-group">
+                        <label>OCR-Zeitplan</label>
+                        <select id="settingOcrScheduleMode" class="form-control">
+                            <option value="always">Immer arbeiten</option>
+                            <option value="scheduled">Nur zu bestimmten Zeiten</option>
+                        </select>
+                        <small class="text-muted">Legt fest, wann OCR-Jobs verarbeitet werden.</small>
+                    </div>
+                    <div class="form-group" id="ocrScheduleTimeGroup" style="display: none;">
+                        <label>Arbeitszeitfenster (von - bis)</label>
+                        <div class="d-flex gap-2">
+                            <input type="time" id="settingOcrScheduleStart" class="form-control" value="20:00">
+                            <span class="align-self-center">bis</span>
+                            <input type="time" id="settingOcrScheduleEnd" class="form-control" value="06:00">
+                        </div>
+                        <small class="text-muted">OCR arbeitet nur in diesem Zeitfenster. Z.B. 20:00 bis 06:00 für Nachtbetrieb.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Wartezeit zwischen PDF-Seiten (Sekunden)</label>
+                        <input type="number" id="settingOcrPageDelay" class="form-control" min="0" max="60" step="0.1" value="0.5">
+                        <small class="text-muted">Wartezeit zwischen den Seiten bei PDFs, um Systemauslastung zu reduzieren.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Wartezeit zwischen Jobs (Sekunden)</label>
+                        <input type="number" id="settingOcrJobDelay" class="form-control" min="0" max="60" step="0.1" value="1.0">
+                        <small class="text-muted">Wartezeit zwischen einzelnen OCR-Jobs, um Systemauslastung zu reduzieren.</small>
+                    </div>
+                    <hr style="margin: 16px 0; border: none; border-top: 1px solid #dee2e6;">
+                    <h5 class="mb-3">Bildvorverarbeitung</h5>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingOcrPreprocessingEnabled" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingOcrPreprocessingEnabled').click()">Bildvorverarbeitung aktivieren</span>
+                        </div>
+                        <small class="text-muted">Verbessert die OCR-Qualität durch Bildoptimierung</small>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingOcrDenoise" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingOcrDenoise').click()">Rauschentfernung</span>
+                        </div>
+                        <small class="text-muted">Entfernt Bildrauschen für klarere Texterkennung</small>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingOcrSharpen" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingOcrSharpen').click()">Schärfung</span>
+                        </div>
+                        <small class="text-muted">Schärft Bilder für bessere Texterkennung</small>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingOcrDeskew" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingOcrDeskew').click()">De-skewing</span>
+                        </div>
+                        <small class="text-muted">Richtet schräge Bilder gerade</small>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingOcrContrastEnhance" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingOcrContrastEnhance').click()">Kontrastverbesserung</span>
+                        </div>
+                        <small class="text-muted">Verbessert den Kontrast für bessere Lesbarkeit</small>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingOcrBinarize" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingOcrBinarize').click()">Binarisierung</span>
+                        </div>
+                        <small class="text-muted">Konvertiert zu Schwarz-Weiß (kann bei bestimmten Dokumenten helfen)</small>
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <div class="settings-collapsible">
+                    <button class="collapsible-header" onclick="document.getElementById('ocrStatusPanel').classList.toggle('hidden')">
+                        <i class="fas fa-file-lines"></i> OCR-Status
+                        <i class="fas fa-chevron-down collapsible-icon"></i>
+                    </button>
+                </div>
+
+                <div id="ocrStatusPanel" class="hidden mt-4">
+                    <h5 class="mb-3"><i class="fas fa-clock mr-2"></i>Warteschlange</h5>
+                    <div id="ocrQueueContainer">
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-clock fa-2x mb-3 text-muted"></i>
+                            <p class="mb-0">Klicken Sie auf das Aktualisieren-Symbol um die Warteschlange anzuzeigen</p>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3"><i class="fas fa-exclamation-triangle mr-2"></i>Fehlgeschlagen</h5>
+                    <div id="failedOcrScansContainer">
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-3 text-muted"></i>
+                            <p class="mb-0">Klicken Sie auf das Aktualisieren-Symbol um fehlgeschlagene Scans anzuzeigen</p>
+                        </div>
+                    </div>
+
+                    <div id="failedOcrScansActions" class="hidden mt-3">
+                        <div class="btn-group w-100">
+                            <button type="button" class="btn btn-sm btn-success flex-fill" onclick="App.requeueSelectedOcrScans()">
+                                <i class="fas fa-redo mr-1"></i> Neu scannen
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger flex-fill" onclick="App.deleteSelectedOcrScans()">
+                                <i class="fas fa-trash mr-1"></i> Löschen
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 text-right">
+                        <button type="button" class="btn btn-primary" onclick="App.loadOcrStatus()">
+                            <i class="fas fa-sync-alt mr-2"></i>Aktualisieren
+                        </button>
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <div class="settings-collapsible">
+                    <button class="collapsible-header" onclick="document.getElementById('similarityWeightsPanel').classList.toggle('hidden')">
+                        <i class="fas fa-sliders-h"></i> Gewichtungen
+                        <i class="fas fa-chevron-down collapsible-icon"></i>
+                    </button>
+                </div>
+                
+                <div id="similarityWeightsPanel" class="hidden mt-4">
+                    <h4 class="mb-3">Gewichtungen anpassen</h4>
+                    <div class="form-group">
+                        <label>Titel-Gewichtung: <span id="weightTitleValue">1.0</span></label>
+                        <input type="range" id="weightTitle" class="form-control" min="0" max="2" step="0.1" value="1.0" oninput="document.getElementById('weightTitleValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Inhalt-Gewichtung: <span id="weightContentValue">1.0</span></label>
+                        <input type="range" id="weightContent" class="form-control" min="0" max="2" step="0.1" value="1.0" oninput="document.getElementById('weightContentValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Adresse-Gewichtung: <span id="weightAddressValue">0.5</span></label>
+                        <input type="range" id="weightAddress" class="form-control" min="0" max="2" step="0.1" value="0.5" oninput="document.getElementById('weightAddressValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Hashtags-Gewichtung: <span id="weightHashtagsValue">0.8</span></label>
+                        <input type="range" id="weightHashtags" class="form-control" min="0" max="2" step="0.1" value="0.8" oninput="document.getElementById('weightHashtagsValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Kategorie-Gewichtung: <span id="weightCategoryValue">0.6</span></label>
+                        <input type="range" id="weightCategory" class="form-control" min="0" max="2" step="0.1" value="0.6" oninput="document.getElementById('weightCategoryValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Rahmenfarbe-Gewichtung: <span id="weightBorderColorValue">0.3</span></label>
+                        <input type="range" id="weightBorderColor" class="form-control" min="0" max="2" step="0.1" value="0.3" oninput="document.getElementById('weightBorderColorValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Status-Gewichtung: <span id="weightStatusValue">0.4</span></label>
+                        <input type="range" id="weightStatus" class="form-control" min="0" max="2" step="0.1" value="0.4" oninput="document.getElementById('weightStatusValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Anhänge-Gewichtung: <span id="weightAttachmentsValue">0.5</span></label>
+                        <input type="range" id="weightAttachments" class="form-control" min="0" max="2" step="0.1" value="0.5" oninput="document.getElementById('weightAttachmentsValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>OCR-Text-Gewichtung: <span id="weightOcrTextValue">0.7</span></label>
+                        <input type="range" id="weightOcrText" class="form-control" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('weightOcrTextValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Erstellungsdatum-Gewichtung: <span id="weightCreationDateValue">0.2</span></label>
+                        <input type="range" id="weightCreationDate" class="form-control" min="0" max="2" step="0.1" value="0.2" oninput="document.getElementById('weightCreationDateValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Updatedatum-Gewichtung: <span id="weightUpdateDateValue">0.3</span></label>
+                        <input type="range" id="weightUpdateDate" class="form-control" min="0" max="2" step="0.1" value="0.3" oninput="document.getElementById('weightUpdateDateValue').textContent = this.value">
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <div class="settings-collapsible">
+                    <button class="collapsible-header" onclick="document.getElementById('storageBackupPanel').classList.toggle('hidden')">
+                        <i class="fas fa-hdd"></i> Speicherpfade & Backup
+                        <i class="fas fa-chevron-down collapsible-icon"></i>
+                    </button>
+                </div>
+                
+                <div id="storageBackupPanel" class="hidden mt-4">
+                    <h4 class="mb-3">Speicherpfade & Backup anpassen</h4>
+                    <div class="form-group">
+                        <label>Speicher-Ordner (Datenbank & Formularvorlagen)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="settingDataBaseDir" class="form-control" placeholder="./Speicher" autocomplete="off">
+                            <button type="button" class="btn btn-secondary" onclick="App.openFolderBrowser('settingDataBaseDir')" title="Ordner wählen">
+                                <i class="fas fa-folder-open"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">Hauptordner für Datenbanken und Formularvorlagen.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Backup-Ordner</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="settingBackupDir" class="form-control" placeholder="./Backups" autocomplete="off">
+                            <button type="button" class="btn btn-secondary" onclick="App.openFolderBrowser('settingBackupDir')" title="Ordner wählen">
+                                <i class="fas fa-folder-open"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">Ort für automatische und manuelle Backups</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Automatisches Backup Intervall</label>
+                        <select id="settingBackupInterval" class="form-control">
+                            <option value="none">Deaktiviert</option>
+                            <option value="daily">Täglich</option>
+                            <option value="weekly">Wöchentlich</option>
+                            <option value="monthly">Monatlich</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Backup Uhrzeit</label>
+                        <input type="time" id="settingBackupTime" class="form-control" value="00:00">
+                    </div>
+                    <div class="form-group">
+                        <label>Anzahl aufzubewahrender Backups</label>
+                        <input type="number" id="settingBackupKeepCount" class="form-control" min="1" max="100" value="30">
+                        <small class="text-muted">Wie viele Backups sollen behalten werden, bevor das älteste gelöscht wird</small>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="settingBackupOnStartup" style="width: 1.2em; height: 1.2em; cursor: pointer;">
+                            <span style="cursor: pointer;" onclick="document.getElementById('settingBackupOnStartup').click()">Backup bei Programmstart durchführen</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 mb-4">
+                        <button type="button" class="btn btn-secondary" onclick="App.runBackup()">
+                            <i class="fas fa-archive"></i> Backup jetzt erstellen
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="App.toggleBackupsList()">
+                            <i class="fas fa-history"></i> Backups laden
+                        </button>
+                    </div>
+                    
+                    <div class="mb-4" style="margin-top: 16px;">
+                        <div id="snapshotsListContainer" class="hidden">
+                            <div id="snapshotsList" class="snapshots-container">
+                                <p class="text-muted" style="margin: 8px 0;">Keine Backups geladen.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <div class="settings-collapsible">
+                    <button class="collapsible-header" onclick="App.toggleCollapsible('referenzorteSection')">
+                        <i class="fas fa-map-marked-alt"></i> Karten-Orte verwalten
+                        <i class="fas fa-chevron-down collapsible-icon" id="referenzorteSectionIcon"></i>
+                    </button>
+                    <div class="collapsible-content" id="referenzorteSection">
+                        <div class="form-group">
+                            <label>Referenzorte auf der Karte</label>
+                            <div class="mb-2" id="buchstabenFilter">
+                                <button class="btn btn-sm btn-secondary filter-btn active" data-buchstabe="all" onclick="App.filterReferenzorte('all')">Alle</button>
+                            </div>
+                            <div id="referenzorteContainer" class="mb-3">
+                                <table class="table" style="width:100%">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Breitengrad (lat)</th>
+                                            <th>Längengrad (lon)</th>
+                                            <th>Level</th>
+                                            <th>Aktion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="referenzorteBody">
+                                        <tr><td colspan="5" class="text-center">Laden...</td></tr>
+                                    </tbody>
+                                </table>
+                                <div class="pagination-container" id="referenzortePagination">
+                                    <button class="btn btn-sm btn-secondary" id="prevPageBtn" onclick="App.prevOrtPage()" disabled>&laquo; Zurück</button>
+                                    <span id="pageInfo">Seite 1 von 1</span>
+                                    <button class="btn btn-sm btn-secondary" id="nextPageBtn" onclick="App.nextOrtPage()" disabled>Vor &raquo;</button>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 mb-2">
+                                <input type="text" id="newOrtName" class="form-control" placeholder="Ortsname (z.B. Berlin)" autocomplete="off">
+                                <input type="number" id="newOrtLat" class="form-control" placeholder="Lat (z.B. 52.52)" step="0.0001" min="-90" max="90">
+                                <input type="number" id="newOrtLon" class="form-control" placeholder="Lon (z.B. 13.40)" step="0.0001" min="-180" max="180">
+                                <select id="newOrtLevel" class="form-control">
+                                    <option value="0">Level 0 (Großstadt)</option>
+                                    <option value="1">Level 1 (Mittelstadt)</option>
+                                    <option value="2" selected>Level 2 (Kleinstadt)</option>
+                                </select>
+                                <button class="btn btn-primary" onclick="App.addReferenzort()">Hinzufügen</button>
+                            </div>
+                            <small class="text-muted">Level 0 = große Städte, Level 1 = mittlere Städte (10km Abstand), Level 2 = kleine Orte (5km Abstand)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Orte importieren/exportieren</label>
+                            <div class="flex gap-2">
+                                <button class="btn btn-secondary" onclick="App.exportReferenzorte()">
+                                    <i class="fas fa-download"></i> Exportieren (JSON)
+                                </button>
+                                <button class="btn btn-secondary" onclick="document.getElementById('importOrteFile').click()">
+                                    <i class="fas fa-upload"></i> Importieren (JSON)
+                                </button>
+                                <input type="file" id="importOrteFile" accept=".json" style="display: none" onchange="App.importReferenzorte()">
+                            </div>
+                            <small class="text-muted">Importieren ersetzt die gesamte Liste der Referenzorte. Exportieren speichert die aktuelle Liste als JSON-Datei.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <h3 class="mb-3">Assistent-Lern-Datenbank</h3>
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="App.loadAssistantLearningData()">
+                        <i class="fas fa-database"></i> Lern-Daten anzeigen
+                    </button>
+                    <button class="btn btn-danger" onclick="App.clearAllAssistantLearningData()">
+                        <i class="fas fa-trash"></i> Alle Lern-Daten löschen
+                    </button>
+                </div>
+                <div id="assistantLearningData" class="hidden mt-4">
+                    <div class="mb-4">
+                        <h4>Blacklist (Falsch markierte Befehle)</h4>
+                        <div id="blacklistList" class="learning-data-list"></div>
+                    </div>
+                    <div class="mb-4">
+                        <h4>Feld-Synonyme (Keywords für Felder)</h4>
+                        <div class="form-group mb-2">
+                            <label>Feld auswählen</label>
+                            <div class="custom-modal-dropdown" id="modalFieldDropdown">
+                                <input type="hidden" id="fieldSelect" value="title">
+                                <button type="button" class="form-control dropdown-toggle">
+                                    <span>Titel</span>
+                                </button>
+                                <div class="dropdown-menu">
+                                    <button type="button" data-value="title"><span>Titel</span></button>
+                                    <button type="button" data-value="address"><span>Adresse</span></button>
+                                    <button type="button" data-value="content"><span>Inhalt</span></button>
+                                    <button type="button" data-value="reminder_date"><span>Termin (Start)</span></button>
+                                    <button type="button" data-value="reminder_end_date"><span>Termin (Ende)</span></button>
+                                    <button type="button" data-value="reminder_repeat"><span>Wiederholung</span></button>
+                                    <button type="button" data-value="reminder_assigned_to"><span>Sichtbarkeit</span></button>
+                                    <button type="button" data-value="status"><span>Status</span></button>
+                                    <button type="button" data-value="category"><span>Kategorie</span></button>
+                                    <button type="button" data-value="note"><span>Vermerk</span></button>
+                                    <button type="button" data-value="border_color"><span>Rahmenfarbe</span></button>
+                                    <button type="button" data-value="add_reminder"><span>Erinnerung hinzufügen</span></button>
+                                </div>
+                            </div>
+                            <input type="text" id="newSynonym" class="form-control mt-2" placeholder="Neues Synonym eingeben (z.B. 'text' für Inhalt)" autocomplete="off">
+                            <button class="btn btn-primary mt-2" onclick="App.addFieldSynonym()">
+                                <i class="fas fa-plus"></i> Synonym hinzufügen
+                            </button>
+                        </div>
+                        <div id="fieldSynonymsList" class="learning-data-list"></div>
+                    </div>
+                    <div class="mb-4">
+                        <h4>Feedback-Beispiele</h4>
+                        <div id="feedbackExamplesList" class="learning-data-list"></div>
+                    </div>
+                    <div class="mb-4">
+                        <h4>Positive Beispiele</h4>
+                        <div id="positiveExamplesList" class="learning-data-list"></div>
+                    </div>
+                    <div class="mb-4">
+                        <h4>Action-Aliase</h4>
+                        <div id="actionAliasesList" class="learning-data-list"></div>
+                    </div>
+                    <div class="mb-4">
+                        <h4>Field-Aliase</h4>
+                        <div id="fieldAliasesList" class="learning-data-list"></div>
+                    </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #dee2e6;">
+
+                <h3 class="mb-3">Software-Update</h3>
+                <div class="form-group">
+                    <label>Aktuelle Version</label>
+                    <div id="currentVersionDisplay" class="p-2 mb-2" style="background:var(--light);border-radius:4px;font-weight:bold">Lade...</div>
+                </div>
+                <div class="form-group">
+                    <label>Update-Paket (ZIP) hochladen</label>
+                    <div class="file-upload-container">
+                        <input type="file" id="updatePackageInput" accept=".zip" class="file-input-hidden">
+                        <div class="file-upload-display" id="updatePackageDisplay">
+                            <i class="fas fa-file-archive text-muted"></i>
+                            <span>Keine Datei ausgewählt</span>
+                        </div>
+                        <button type="button" class="btn btn-secondary file-upload-btn" onclick="document.getElementById('updatePackageInput').click()">
+                            <i class="fas fa-folder-open"></i> Datei wählen
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="App.uploadUpdate()">
+                            <i class="fas fa-upload"></i> Hochladen
+                        </button>
+                    </div>
+                    <small class="text-muted">Laden Sie ein offizielles ORDAMA Update-Paket (.zip) hoch.</small>
+                </div>
+                <div class="form-group mt-3">
+                    <label>Update exportieren</label>
+                    <button type="button" class="btn btn-success" onclick="App.exportUpdate()">
+                        <i class="fas fa-download"></i> Aktuelles System als Update exportieren
+                    </button>
+                    <small class="text-muted">Erstellt ein Update-Paket vom aktuellen System, das auf älteren Versionen importiert werden kann.</small>
+                </div>
+                <div id="updateStatusContainer" class="hidden mt-2 p-3" style="background:var(--light);border-radius:8px">
+                    <div id="updateStatusText" class="mb-2"></div>
+                    <button type="button" id="installUpdateBtn" class="btn btn-warning hidden" onclick="App.installUpdate()">
+                        <i class="fas fa-magic"></i> Update jetzt installieren
+                    </button>
+                </div>
+
+                <div class="flex gap-3 flex-wrap mt-3">
+                    <button type="button" class="btn btn-primary" onclick="App.saveSettings()">
+                        <i class="fas fa-save"></i> Speichern
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="App.restartServer()">
+                        <i class="fas fa-redo"></i> Server neu starten
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="App.stopServer()">
+                        <i class="fas fa-stop"></i> Server beenden
+                    </button>
+                </div>
+                <div class="mt-3 p-3" style="background:var(--light);border-radius:8px">
+                    <p class="text-muted" style="font-size:0.85rem;margin:0">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Hinweis:</strong> Port- und Host-Aenderungen werden erst nach einem Neustart aktiv.
+                        Die URL lautet: <code id="settingUrlPreview">http://localhost:8080</code>
+                    </p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Bottom Navigation (Mobile) -->
+    <nav class="bottom-nav">
+        <button class="bottom-nav-item" data-section="records">
+            <i class="fas fa-folder"></i>
+            <span></span>
+        </button>
+        <button class="bottom-nav-item" data-section="karte">
+            <i class="fas fa-map-marked-alt"></i>
+            <span>Karte</span>
+        </button>
+        <button class="bottom-nav-item" data-section="calendar">
+            <i class="fas fa-calendar-alt"></i>
+            <span>Kalender</span>
+        </button>
+        <button class="bottom-nav-item" data-section="dashboard">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>Statistik</span>
+        </button>
+        <button class="bottom-nav-item" data-section="gallery">
+            <i class="fas fa-images"></i>
+            <span>Galerie</span>
+        </button>
+        <button class="bottom-nav-item admin-only hidden" data-section="users">
+            <i class="fas fa-users-cog"></i>
+            <span>Benutzer</span>
+        </button>
+        <button class="bottom-nav-item admin-only hidden" data-section="settings">
+            <i class="fas fa-cog"></i>
+            <span>Einstellungen</span>
+        </button>
+    </nav>
+
+    <!-- FAB (Floating Action Button) -->
+    <button class="fab" id="mainFab" data-perm="can_write" onclick="App.handleFabClick()" aria-label="Aktion">
+        <i class="fas fa-plus"></i>
+    </button>
+</div>
+
+<!-- ════════════════════════════════════════════
+     RECORD MODAL
+     ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="recordModal">
+        <div class="modal-header">
+            <h3 id="modalTitle">Neue Akte</h3>
+            <div class="modal-header-actions">
+                <button class="header-btn" id="modalFullscreen" aria-label="Vollbild" title="Vollbildmodus">
+                    <i class="fas fa-expand"></i>
+                </button>
+                <button class="header-btn" id="modalClose" aria-label="Schliessen">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <form id="recordForm">
+            <div class="modal-body">
+                <div id="lockBanner" class="lock-banner hidden"></div>
+
+                <input type="hidden" id="recordId">
+                <div class="form-group" id="recordNumberGroup" style="display: none;">
+                    <label>Aktennummer</label>
+                    <input type="text" id="recordNumber" class="form-control" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Titel</label>
+                    <input type="text" id="recordTitle" class="form-control" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Adresse</label>
+                    <input type="text" id="recordAddress" class="form-control" placeholder="Straße Hausnummer, PLZ Ort" autocomplete="off">
+                </div>
+                <div class="form-group editor-group">
+                    <label>Inhalt</label>
+                    <div class="content-editor-toolbar">
+                        <button type="button" class="toolbar-btn" onclick="App.exec('bold')"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="toolbar-btn" onclick="App.exec('italic')"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="toolbar-btn" onclick="App.exec('underline')"><i class="fas fa-underline"></i></button>
+                        <div class="custom-modal-dropdown toolbar-dropdown" id="modalFontSizeDropdown">
+                            <input type="hidden" id="recordFontSize" value="16pt">
+                            <button type="button" class="toolbar-btn dropdown-toggle" style="min-width: 90px; padding: 0 8px;">
+                                <span>16pt</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="10pt">10pt</button>
+                                <button type="button" data-value="12pt">12pt</button>
+                                <button type="button" data-value="14pt">14pt</button>
+                                <button type="button" data-value="16pt" class="selected">16pt</button>
+                                <button type="button" data-value="18pt">18pt</button>
+                                <button type="button" data-value="20pt">20pt</button>
+                                <button type="button" data-value="24pt">24pt</button>
+                            </div>
+                        </div>
+                        <button type="button" class="toolbar-btn" onclick="App.insertDate()"><i class="fas fa-calendar"></i></button>
+                        <button type="button" class="toolbar-btn" onclick="App.insertCheckbox()"><i class="fas fa-check-square"></i></button>
+                    </div>
+                    <div id="recordContent" class="content-area" contenteditable="true"></div>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="form-group" id="formGroupReminder">
+                        <label>Termin (Start)</label>
+                        <div class="datetime-picker-container">
+                            <input type="hidden" id="recordReminderDateValue">
+                            <input type="text" id="recordReminderDate" class="form-control datetime-picker-input" placeholder="Startdatum" readonly>
+                            <button type="button" class="datetime-picker-btn" onclick="App.openDateTimePicker('start')">
+                                <i class="fas fa-calendar-alt"></i>
+                            </button>
+                            <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearDateTime('start')">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group" id="formGroupReminderEnd">
+                        <label>Termin (Ende)</label>
+                        <div class="datetime-picker-container">
+                            <input type="hidden" id="recordReminderEndDateValue">
+                            <input type="text" id="recordReminderEndDate" class="form-control datetime-picker-input" placeholder="Enddatum" readonly>
+                            <button type="button" class="datetime-picker-btn" onclick="App.openDateTimePicker('end')">
+                                <i class="fas fa-calendar-alt"></i>
+                            </button>
+                            <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearDateTime('end')">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group" id="formGroupReminderRepeat">
+                        <label>Wiederholung</label>
+                        <div class="custom-modal-dropdown" id="modalRepeatDropdown">
+                            <input type="hidden" id="recordReminderRepeat" value="">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <span>Keine</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value=""><span>Keine</span></button>
+                                <button type="button" data-value="weekly"><span>Wöchentlich</span></button>
+                                <button type="button" data-value="monthly"><span>Monatlich</span></button>
+                                <button type="button" data-value="yearly"><span>Jährlich</span></button>
+                                <button type="button" data-value="weekly_interval"><span>Jede x-te Woche</span></button>
+                                <button type="button" data-value="monthly_nth_weekday"><span>Monatlich (x-ter)</span></button>
+                                <button type="button" data-value="monthly_interval"><span>Jeden x-ten Monat</span></button>
+                                <button type="button" data-value="yearly_interval"><span>Jedes x-te Jahr</span></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="advancedRepeatOptions" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                    <div class="form-group" id="formGroupWeekInterval">
+                        <label>Intervall</label>
+                        <div class="custom-modal-dropdown" id="modalWeekIntervalDropdown">
+                            <input type="hidden" id="recordReminderWeekInterval" value="2">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <span>2.</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="1"><span>1.</span></button>
+                                <button type="button" data-value="2"><span>2.</span></button>
+                                <button type="button" data-value="3"><span>3.</span></button>
+                                <button type="button" data-value="4"><span>4.</span></button>
+                                <button type="button" data-value="5"><span>5.</span></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group hidden" id="formGroupMonthInterval">
+                        <label>Intervall</label>
+                        <div class="custom-modal-dropdown" id="modalMonthIntervalDropdown">
+                            <input type="hidden" id="recordReminderMonthInterval" value="2">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <span>2.</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="1"><span>1.</span></button>
+                                <button type="button" data-value="2"><span>2.</span></button>
+                                <button type="button" data-value="3"><span>3.</span></button>
+                                <button type="button" data-value="4"><span>4.</span></button>
+                                <button type="button" data-value="5"><span>5.</span></button>
+                                <button type="button" data-value="6"><span>6.</span></button>
+                                <button type="button" data-value="7"><span>7.</span></button>
+                                <button type="button" data-value="8"><span>8.</span></button>
+                                <button type="button" data-value="9"><span>9.</span></button>
+                                <button type="button" data-value="10"><span>10.</span></button>
+                                <button type="button" data-value="11"><span>11.</span></button>
+                                <button type="button" data-value="12"><span>12.</span></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group hidden" id="formGroupMonthMode">
+                        <label>Art</label>
+                        <div class="custom-modal-dropdown" id="modalMonthModeDropdown">
+                            <input type="hidden" id="recordReminderMonthMode" value="date">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <span>Datum</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="date"><span>Datum</span></button>
+                                <button type="button" data-value="weekday"><span>Wochentag</span></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group hidden" id="formGroupYearInterval">
+                        <label>Intervall</label>
+                        <div class="custom-modal-dropdown" id="modalYearIntervalDropdown">
+                            <input type="hidden" id="recordReminderYearInterval" value="2">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <span>2.</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="1"><span>1.</span></button>
+                                <button type="button" data-value="2"><span>2.</span></button>
+                                <button type="button" data-value="3"><span>3.</span></button>
+                                <button type="button" data-value="4"><span>4.</span></button>
+                                <button type="button" data-value="5"><span>5.</span></button>
+                                <button type="button" data-value="6"><span>6.</span></button>
+                                <button type="button" data-value="7"><span>7.</span></button>
+                                <button type="button" data-value="8"><span>8.</span></button>
+                                <button type="button" data-value="9"><span>9.</span></button>
+                                <button type="button" data-value="10"><span>10.</span></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" id="formGroupNthWeekday">
+                        <label>x-ter</label>
+                        <div class="custom-modal-dropdown" id="modalNthWeekdayDropdown">
+                            <input type="hidden" id="recordReminderNthWeekday" value="1">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <span>1.</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="1"><span>1.</span></button>
+                                <button type="button" data-value="2"><span>2.</span></button>
+                                <button type="button" data-value="3"><span>3.</span></button>
+                                <button type="button" data-value="4"><span>4.</span></button>
+                                <button type="button" data-value="last"><span>letzter</span></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" id="formGroupWeekday">
+                        <label>Wochentag</label>
+                        <div class="custom-modal-dropdown" id="modalWeekdayDropdown">
+                            <input type="hidden" id="recordReminderWeekday" value="1">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <span>Montag</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="1"><span>Montag</span></button>
+                                <button type="button" data-value="2"><span>Dienstag</span></button>
+                                <button type="button" data-value="3"><span>Mittwoch</span></button>
+                                <button type="button" data-value="4"><span>Donnerstag</span></button>
+                                <button type="button" data-value="5"><span>Freitag</span></button>
+                                <button type="button" data-value="6"><span>Samstag</span></button>
+                                <button type="button" data-value="0"><span>Sonntag</span></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group" id="formGroupReminderVisibility">
+                    <label>Sichtbarkeit</label>
+                    <div class="custom-modal-dropdown" id="modalReminderVisibilityDropdown">
+                        <input type="hidden" id="recordReminderVisibility" value="all">
+                        <button type="button" class="form-control dropdown-toggle">
+                            <i class="fas fa-users visibility-icon visibility-all"></i> <span>Termin für alle sichtbar</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button type="button" data-value="all"><i class="fas fa-users visibility-icon visibility-all"></i> <span>Termin für alle sichtbar</span></button>
+                            <button type="button" data-value="private"><i class="fas fa-user visibility-icon visibility-private"></i> <span>Termin nur für mich sichtbar</span></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group" id="formGroupStatus">
+                        <label><input type="checkbox" id="setDefaultStatus" title="Als Standard speichern">&nbsp;Status</label>
+                        <div class="custom-modal-dropdown" id="modalStatusDropdown">
+                            <input type="hidden" id="recordStatus" value="neutral">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <i class="fas fa-info-circle text-neutral"></i> <span>Neutral</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="neutral"><i class="fas fa-info-circle text-neutral"></i> <span>Neutral</span></button>
+                                <button type="button" data-value="offen"><i class="fas fa-clock text-offen"></i> <span>Offen</span></button>
+                                <button type="button" data-value="bearbeitung"><i class="fas fa-spinner text-bearbeitung"></i> <span>In Bearbeitung</span></button>
+                                <button type="button" data-value="erledigt"><i class="fas fa-check-circle text-erledigt"></i> <span>Erledigt</span></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" id="formGroupCategory">
+                        <label><input type="checkbox" id="setDefaultCategory" title="Als Standard speichern">&nbsp;Kategorie</label>
+                        <div class="custom-modal-dropdown" id="modalCategoryDropdown">
+                            <input type="hidden" id="recordCategory" value="">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <i class="fas fa-tag"></i> <span>Keine Kategorie</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value="">
+                                    <i class="fas fa-tag"></i> <span>Keine Kategorie</span>
+                                </button>
+                                <!-- Kategorien via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group" id="formGroupNote">
+                        <label><input type="checkbox" id="setDefaultNote" title="Als Standard speichern">&nbsp;Vermerk</label>
+                        <input type="text" id="recordHashtags" class="form-control" placeholder="Interne Notiz oder Stichworte..." autocomplete="off">
+                    </div>
+                    <div class="form-group" id="formGroupBorderColor">
+                        <label><input type="checkbox" id="setDefaultColor" title="Als Standard speichern">&nbsp;Rahmenfarbe</label>
+                        <div class="custom-modal-dropdown" id="modalColorDropdown">
+                            <input type="hidden" id="recordBorderColor" value="">
+                            <button type="button" class="form-control dropdown-toggle">
+                                <i class="fas fa-square" style="color:#e9ecef"></i> <span>Standard</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <button type="button" data-value=""><i class="fas fa-square" style="color:#e9ecef"></i> <span>Standard</span></button>
+                                <button type="button" data-value="border-red"><i class="fas fa-square" style="color:#dc3545"></i> <span>Rot</span></button>
+                                <button type="button" data-value="border-yellow"><i class="fas fa-square" style="color:#ffc107"></i> <span>Gelb</span></button>
+                                <button type="button" data-value="border-green"><i class="fas fa-square" style="color:#28a745"></i> <span>Grün</span></button>
+                                <button type="button" data-value="border-blue"><i class="fas fa-square" style="color:#007bff"></i> <span>Blau</span></button>
+                                <button type="button" data-value="border-magenta"><i class="fas fa-square" style="color:#ff00ff"></i> <span>Magenta</span></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="dateTimePickerModal" class="datetime-picker-modal">
+                    <div class="datetime-picker-content">
+                        <div class="datetime-picker-header">
+                            <button type="button" class="datetime-nav" onclick="App.changeDateTimeMonth(-1)">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <h4 id="dateTimeMonthYear">-</h4>
+                            <button type="button" class="datetime-nav" onclick="App.changeDateTimeMonth(1)">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="datetime-calendar-grid" id="dateTimeCalendarGrid"></div>
+                        <div class="datetime-picker-footer">
+                            <button type="button" class="btn btn-secondary" onclick="App.closeDateTimePicker()">Abbrechen</button>
+                            <button type="button" class="btn btn-primary" onclick="App.setDateTime()">Übernehmen</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Erinnerungn, Formulare, Uploads -->
+                <div class="form-group">
+                    <div class="grid grid-cols-2 gap-4" style="margin-bottom: 8px;">
+                        <button type="button" id="addReminderBtn" class="btn btn-secondary w-full" onclick="App.openReminderModal()">
+                            <i class="fas fa-bell"></i> Erinnerung hinzufügen
+                        </button>
+                        <button type="button" class="btn btn-secondary w-full" onclick="App.showFormSelectionModal()" data-perm="can_fill_forms">
+                            <i class="fas fa-file-invoice"></i> Formular ausfüllen
+                        </button>
+                    </div>
+                    <div id="recordRemindersSection">
+                        <div id="recordReminderList" class="reminder-list-in-modal"></div>
+                    </div>
+                    
+                    <div class="file-drop-zone" id="fileDropZone" data-perm="can_upload" style="margin-top: 12px;">
+                        <input type="file" id="recordFiles" class="file-input" multiple>
+                        <i class="fas fa-cloud-upload-alt" style="font-size:2rem;color:var(--primary)"></i>
+                        <p class="mt-2"><strong>Dateien hochladen</strong></p>
+                    </div>
+                    <div class="file-drop-zone" id="clipboardDropZone" data-perm="can_upload" style="margin-top: 12px; cursor: pointer;">
+                        <i class="fas fa-clipboard" style="font-size:2rem;color:var(--primary)"></i>
+                        <p class="mt-2"><strong>Aus Zwischenablage einfügen</strong></p>
+                    </div>
+                    <div id="clipboardInputArea" class="hidden" style="margin-top: 12px;">
+                        <textarea id="clipboardTextInput" class="form-control" rows="4" placeholder="Hier Text oder Bild einfügen..."></textarea>
+                        <div id="clipboardImagePreview" class="hidden mt-2" style="text-align: center;">
+                            <img id="clipboardPreviewImg" style="max-width: 100%; max-height: 200px; border: 1px solid #ccc;">
+                        </div>
+                        <div class="mt-2" style="display: flex; justify-content: flex-end; gap: 10px;">
+                            <button type="button" class="btn btn-danger" onclick="App.cancelClipboardImport()">
+                                <i class="fas fa-trash"></i> Löschen
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="App.submitClipboardContent()">
+                                <i class="fas fa-save"></i> Einfügen
+                            </button>
+                        </div>
+                    </div>
+                    <div id="offlineUploadWarning" class="alert alert-warning mt-2" style="display: none; text-align: center; margin-top: 16px;">
+                        <i class="fas fa-exclamation-triangle"></i> Datei-Upload nur mit Server-Verbindung möglich
+                    </div>
+                    <div id="attachmentList" class="attachment-list"></div>
+                </div>
+
+                <!-- Speichern-Overlay -->
+                <div id="savingOverlay" class="saving-overlay" style="display: none;">
+                    <div class="saving-content">
+                        <i class="fas fa-spinner fa-spin fa-3x"></i>
+                        <p class="mt-3">Speichere Akte...</p>
+                        <p class="text-muted small">Bitte warten</p>
+                    </div>
+                </div>
+
+                <!-- Integrierter Media Player -->
+                <div id="mediaPlayerSection" class="media-player">
+                    <div class="media-title" id="mediaPlayerTitle"></div>
+                    <div id="mediaPlayerContent"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-perm="can_delete" onclick="App.deleteRecord()">
+                    <i class="fas fa-trash"></i> Löschen
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Speichern
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     BULK REMINDER MODAL
+     ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="bulkReminderModalOverlay">
+    <div class="modal" id="bulkReminderModal">
+        <div class="modal-header">
+            <h3>Termin für ausgewählte Akten setzen</h3>
+            <button class="header-btn" id="bulkReminderModalClose" aria-label="Schließen">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="grid grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label>Termin (Start)</label>
+                    <div class="datetime-picker-container">
+                        <input type="hidden" id="bulkReminderDateValue">
+                        <input type="text" id="bulkReminderDate" class="form-control datetime-picker-input" placeholder="Startdatum" readonly>
+                        <button type="button" class="datetime-picker-btn" onclick="App.openBulkDateTimePicker('start')">
+                            <i class="fas fa-calendar-alt"></i>
+                        </button>
+                        <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearBulkDateTime('start')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Termin (Ende)</label>
+                    <div class="datetime-picker-container">
+                        <input type="hidden" id="bulkReminderEndDateValue">
+                        <input type="text" id="bulkReminderEndDate" class="form-control datetime-picker-input" placeholder="Enddatum" readonly>
+                        <button type="button" class="datetime-picker-btn" onclick="App.openBulkDateTimePicker('end')">
+                            <i class="fas fa-calendar-alt"></i>
+                        </button>
+                        <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearBulkDateTime('end')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Wiederholung</label>
+                    <div class="custom-modal-dropdown" id="bulkModalRepeatDropdown">
+                        <input type="hidden" id="bulkReminderRepeat" value="">
+                        <button type="button" class="form-control dropdown-toggle">
+                            <span>Keine</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button type="button" data-value=""><span>Keine</span></button>
+                            <button type="button" data-value="weekly"><span>Wöchentlich</span></button>
+                            <button type="button" data-value="monthly"><span>Monatlich</span></button>
+                            <button type="button" data-value="yearly"><span>Jährlich</span></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="bulkDateTimePickerModal" class="datetime-picker-modal">
+                <div class="datetime-picker-content">
+                    <div class="datetime-picker-header">
+                        <button type="button" class="datetime-nav" onclick="App.changeBulkDateTimeMonth(-1)">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <h4 id="bulkDateTimeMonthYear">-</h4>
+                        <button type="button" class="datetime-nav" onclick="App.changeBulkDateTimeMonth(1)">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div class="datetime-calendar-grid" id="bulkDateTimeCalendarGrid"></div>
+                    <div class="datetime-picker-footer">
+                        <button type="button" class="btn btn-secondary" onclick="App.closeBulkDateTimePicker()">Abbrechen</button>
+                        <button type="button" class="btn btn-primary" onclick="App.setBulkDateTime()">Übernehmen</button>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:16px;">
+                <label>Sichtbarkeit</label>
+                <div class="custom-modal-dropdown" id="bulkReminderVisibilityDropdown">
+                    <input type="hidden" id="bulkReminderVisibility" value="all">
+                    <button type="button" class="form-control dropdown-toggle">
+                        <i class="fas fa-users visibility-icon visibility-all"></i> <span>Termin für alle sichtbar</span>
+                    </button>
+                    <div class="dropdown-menu">
+                        <button type="button" data-value="all"><i class="fas fa-users visibility-icon visibility-all"></i> <span>Termin für alle sichtbar</span></button>
+                        <button type="button" data-value="private"><i class="fas fa-user visibility-icon visibility-private"></i> <span>Termin nur für mich sichtbar</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="App.closeBulkReminderModal()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="App.saveBulkReminder()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     BULK ERINNERUNG MODAL
+     ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="bulkErinnerungModalOverlay">
+    <div class="modal" id="bulkErinnerungModal">
+        <div class="modal-header">
+            <h3>Erinnerung für ausgewählte Akten setzen</h3>
+            <button class="header-btn" id="bulkErinnerungModalClose" aria-label="Schließen" onclick="App.closeBulkErinnerungModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="bulkErinnerungForm">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Datum *</label>
+                    <div class="datetime-picker-container">
+                        <input type="hidden" id="bulkErinnerungDateValue">
+                        <input type="text" id="bulkErinnerungDate" class="form-control datetime-picker-input" placeholder="Datum wählen" readonly>
+                        <button type="button" class="datetime-picker-btn" onclick="App.openBulkErinnerungDateTimePicker()">
+                            <i class="fas fa-calendar-alt"></i>
+                        </button>
+                        <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearBulkErinnerungDate()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Zugewiesen an</label>
+                    <div class="custom-modal-dropdown" id="bulkErinnerungAssignDropdown">
+                        <input type="hidden" id="bulkErinnerungAssignedTo" value="">
+                        <button type="button" class="form-control dropdown-toggle">
+                            <i class="fas fa-users"></i> <span>Alle</span>
+                        </button>
+                        <div class="dropdown-menu" id="bulkErinnerungAssignMenu">
+                            <button type="button" data-value="">
+                                <i class="fas fa-users"></i> <span>Alle</span>
+                            </button>
+                            <!-- Benutzer via JS -->
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notiz</label>
+                    <textarea id="bulkErinnerungNote" class="form-control" rows="3" placeholder="Optionale Notiz..."></textarea>
+                </div>
+                <div id="bulkErinnerungDateTimePickerModal" class="datetime-picker-modal">
+                    <div class="datetime-picker-content">
+                        <div class="datetime-picker-header">
+                            <button type="button" class="datetime-nav" onclick="App.changeBulkErinnerungDateTimeMonth(-1)">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <h4 id="bulkErinnerungDateTimeMonthYear">-</h4>
+                            <button type="button" class="datetime-nav" onclick="App.changeBulkErinnerungDateTimeMonth(1)">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="datetime-calendar-grid" id="bulkErinnerungDateTimeCalendarGrid"></div>
+                        <div class="datetime-picker-footer">
+                            <button type="button" class="btn btn-secondary" onclick="App.closeBulkErinnerungDateTimePicker()">Abbrechen</button>
+                            <button type="button" class="btn btn-primary" onclick="App.setBulkErinnerungDate()">Übernehmen</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="App.closeBulkErinnerungModal()">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     BULK NOTE MODAL
+     ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="bulkNoteModalOverlay">
+    <div class="modal" id="bulkNoteModal">
+        <div class="modal-header">
+            <h3>Vermerk für ausgewählte Akten setzen</h3>
+            <button class="header-btn" id="bulkNoteModalClose" aria-label="Schließen" onclick="App.closeBulkNoteModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Vermerk</label>
+                <input type="text" id="bulkNoteInput" class="form-control" placeholder="Interne Notiz oder Stichworte..." autocomplete="off">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="App.closeBulkNoteModal()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="App.saveBulkNote()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     REMINDER MODAL
+     ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="reminderModalOverlay">
+    <div class="modal" id="reminderModal">
+        <div class="modal-header">
+            <h3>Erinnerung hinzufügen</h3>
+            <button class="header-btn" id="reminderModalClose" aria-label="Schließen" onclick="App.closeReminderModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="reminderForm">
+            <div class="modal-body">
+                <input type="hidden" id="reminderRecordId">
+                <input type="hidden" id="reminderId">
+                <div class="form-group">
+                    <label>Datum *</label>
+                    <div class="datetime-picker-container">
+                        <input type="hidden" id="reminderDateValue">
+                        <input type="text" id="reminderDate" class="form-control datetime-picker-input" placeholder="Datum wählen" readonly>
+                        <button type="button" class="datetime-picker-btn" onclick="App.openReminderDateTimePicker()">
+                            <i class="fas fa-calendar-alt"></i>
+                        </button>
+                        <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearReminderDate()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Zugewiesen an</label>
+                    <div class="custom-modal-dropdown" id="reminderAssignDropdown">
+                        <input type="hidden" id="reminderAssignedTo" value="">
+                        <button type="button" class="form-control dropdown-toggle">
+                            <i class="fas fa-users"></i> <span>Alle</span>
+                        </button>
+                        <div class="dropdown-menu" id="reminderAssignMenu">
+                            <button type="button" data-value="">
+                                <i class="fas fa-users"></i> <span>Alle</span>
+                            </button>
+                            <!-- Benutzer via JS -->
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notiz</label>
+                    <textarea id="reminderNote" class="form-control" rows="3" placeholder="Optionale Notiz..."></textarea>
+                </div>
+                <div id="reminderDateTimePickerModal" class="datetime-picker-modal">
+                    <div class="datetime-picker-content">
+                        <div class="datetime-picker-header">
+                            <button type="button" class="datetime-nav" onclick="App.changeReminderDateTimeMonth(-1)">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <h4 id="reminderDateTimeMonthYear">-</h4>
+                            <button type="button" class="datetime-nav" onclick="App.changeReminderDateTimeMonth(1)">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="datetime-calendar-grid" id="reminderDateTimeCalendarGrid"></div>
+                        <div class="datetime-picker-footer">
+                            <button type="button" class="btn btn-secondary" onclick="App.closeReminderDateTimePicker()">Abbrechen</button>
+                            <button type="button" class="btn btn-primary" onclick="App.setReminderDate()">Übernehmen</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="App.closeReminderModal()">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     USER MODAL
+     ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="userModalOverlay">
+    <div class="modal" id="userModal">
+        <div class="modal-header">
+            <h3 id="userModalTitle">Neuer Benutzer</h3>
+            <button class="header-btn" id="userModalClose" aria-label="Schließen">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="userForm">
+            <div class="modal-body">
+                <input type="hidden" id="userEditId">
+                <div class="form-group">
+                    <label>Benutzername *</label>
+                    <input type="text" id="userEditName" class="form-control" required>
+                </div>
+                <div class="form-group" id="userPassGroup">
+                    <label>Passwort *</label>
+                    <input type="password" id="userEditPass" class="form-control" minlength="8">
+                </div>
+                <div class="form-group">
+                    <label>Rolle</label>
+                    <div class="custom-modal-dropdown" id="userRoleDropdown">
+                        <input type="hidden" id="userEditRole" value="user">
+                        <button type="button" class="form-control dropdown-toggle">
+                            <i class="fas fa-user"></i> <span>Benutzer</span>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button type="button" data-value="user"><i class="fas fa-user"></i> <span>Benutzer</span></button>
+                            <button type="button" data-value="admin"><i class="fas fa-user-shield"></i> <span>Administrator</span></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="userEditActive" checked>
+                        <span>Aktiv</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <div class="permission-section-title permission-main-title">Berechtigungen</div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditRead" checked>
+                            <span>Lesen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditWrite" checked>
+                            <span>Schreiben</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditDownload" checked>
+                            <span>Download</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditUpload" checked>
+                            <span>Upload</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditDelete">
+                            <span>Löschen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditFillForms" checked>
+                            <span>Formulare ausfüllen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditSetCategory" checked>
+                            <span>Kategorie setzen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditSetStatus" checked>
+                            <span>Status setzen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditSetBorderColor" checked>
+                            <span>Rahmenfarbe setzen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditSetReminder" checked>
+                            <span>Termin setzen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditDeleteTermine" checked>
+                            <span>Termin löschen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditSetErinnerung" checked>
+                            <span>Erinnerung setzen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditDeleteErinnerung" checked>
+                            <span>Erinnerung löschen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditSetNote" checked>
+                            <span>Vermerk setzen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditArchive" checked>
+                            <span>Archivieren</span>
+                        </label>
+                        <div class="permission-subsection-divider">
+                            <div class="permission-section-title permission-subsection-title">Ansehen</div>
+                        </div>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditViewStats" checked>
+                            <span>Statistik ansehen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditViewRecords" checked>
+                            <span>Akten ansehen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditViewGallery" checked>
+                            <span>Galerie ansehen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditChat" checked>
+                            <span>Chat</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditViewMap" checked>
+                            <span>Karte ansehen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditViewCalendar" checked>
+                            <span>Kalender ansehen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditViewAssistant" checked>
+                            <span>Assistent ansehen</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditViewArchive" checked>
+                            <span>Archiv ansehen</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     CONFIRM DIALOG
+     ════════════════════════════════════════════ -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+        <h4 id="confirmTitle">Bestätigen</h4>
+        <p id="confirmText">Sind Sie sicher?</p>
+        <div class="confirm-actions">
+            <button class="btn btn-secondary" id="confirmNo">Abbrechen</button>
+            <button class="btn btn-danger" id="confirmYes">Ja, löschen</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     ALERT DIALOG
+     ════════════════════════════════════════════ -->
+<div class="confirm-overlay" id="alertOverlay">
+    <div class="confirm-box">
+        <h4 id="alertTitle"><i class="fas fa-exclamation-circle"></i> Hinweis</h4>
+        <p id="alertText">Meldung</p>
+        <div class="confirm-actions">
+            <button class="btn btn-primary" id="alertOk">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     LOADING
+     ════════════════════════════════════════════ -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <p class="text-muted">Lade...</p>
+</div>
+
+<!-- Category Modal -->
+<div class="modal-overlay" id="categoryModalOverlay">
+    <div class="modal" id="categoryModal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 id="categoryModalTitle">Kategorie erstellen</h3>
+            <button class="header-btn" onclick="App.closeCategoryModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="categoryForm">
+                <input type="hidden" id="categoryId">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="categoryName" class="form-control" required placeholder="z.B. Wichtig">
+                </div>
+                <!-- Liste bestehender Kategorien zum Bearbeiten -->
+                <div class="form-group mt-4">
+                    <label>Bestehende Kategorien (Klicken zum Bearbeiten)</label>
+                    <div id="categoryManageList" class="flex flex-wrap gap-2 py-2">
+                        <!-- Kategorien via JS -->
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="closeOrDeleteCategoryBtn" onclick="App.closeCategoryModal()">Schließen</button>
+            <button type="submit" form="categoryForm" class="btn btn-primary">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Auswahl Modal -->
+<div class="modal-overlay" id="mobileAuswahlModalOverlay">
+    <div class="modal" id="mobileAuswahlModal">
+        <div class="modal-header">
+            <h3 id="mobileAuswahlTitle">Auswahl</h3>
+            <button class="header-btn" onclick="App.closeMobileAuswahlModal()" aria-label="Schließen">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div id="mobileAuswahlContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Folder Browser Modal -->
+<div class="modal-overlay" id="folderBrowserModalOverlay">
+    <div class="modal" id="folderBrowserModal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 id="folderBrowserTitle">Ordner wählen</h3>
+            <button class="header-btn" onclick="App.closeFolderBrowser()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div id="folderBrowserCurrentPath" class="mb-3 p-2" style="background: var(--light); border-radius: 4px; font-family: monospace; word-break: break-all;"></div>
+            <div id="folderBrowserList" class="folder-browser-list" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                <!-- Ordner via JS -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="App.closeFolderBrowser()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="App.selectCurrentFolder()">Diesen Ordner wählen</button>
+        </div>
+    </div>
+</div>
+
+<!-- Gallery Lightbox Modal -->
+<div class="modal-overlay" id="galleryLightboxOverlay" style="background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center;">
+    <button class="header-btn" id="galleryLightboxClose" style="position: absolute; top: 16px; right: 16px; z-index: 100; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 48px; height: 48px; font-size: 24px;">
+        <i class="fas fa-times"></i>
+    </button>
+    <button class="header-btn" id="galleryLightboxPrev" style="position: absolute; top: 50%; left: 16px; transform: translateY(-50%); z-index: 100; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 48px; height: 48px; font-size: 24px;">
+        <i class="fas fa-chevron-left"></i>
+    </button>
+    <button class="header-btn" id="galleryLightboxNext" style="position: absolute; top: 50%; right: 16px; transform: translateY(-50%); z-index: 100; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 48px; height: 48px; font-size: 24px;">
+        <i class="fas fa-chevron-right"></i>
+    </button>
+    <button class="fab" id="galleryLightboxGoToRecord" style="position: absolute; bottom: 16px; right: 16px; z-index: 100; display: none;" title="Zur Akte">
+        <i class="fas fa-folder"></i>
+    </button>
+    <div id="galleryLightboxContent" style="width: calc(100vw - 64px); height: calc(100vh - 64px); max-width: calc(100vw - 64px); max-height: calc(100vh - 64px); position: relative; display: flex; align-items: center; justify-content: center;">
+        <!-- Media content will be inserted here -->
+    </div>
+    <div id="galleryLightboxInfo" style="position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 8px 16px; border-radius: 8px; text-align: center; max-width: 80vw; word-break: break-word;">
+        <!-- Info will be inserted here -->
+    </div>
+</div>
+
+<!-- Restore Confirmation Modal -->
+<div class="modal-overlay" id="restoreModalOverlay">
+    <div class="modal" id="restoreModal" style="max-width: 650px; height: auto;">
+        <div class="modal-header">
+            <h3><i class="fas fa-undo"></i> Backup wiederherstellen</h3>
+            <div class="modal-header-actions">
+                <button class="header-btn" onclick="App.closeRestoreModal()" aria-label="Schliessen">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="modal-body" style="text-align: center;">
+            <div id="restoreModalMessage" class="mb-4" style="font-size: 1.05rem;"></div>
+            <div class="alert alert-warning" style="padding: 16px 20px; border-radius: 8px; text-align: center;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Achtung</div>
+                <div style="margin-bottom: 6px;">Aktuelle Daten werden überschrieben</div>
+            </div>
+            <div class="alert alert-info" style="padding: 16px 20px; border-radius: 8px; text-align: center; margin-top: 12px;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Wichtig</div>
+                <div>Nach der Wiederherstellung muss der Server manuell neu gestartet werden!</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="App.closeRestoreModal()">Abbrechen</button>
+            <button type="button" class="btn btn-warning" id="restoreConfirmBtn">
+                <i class="fas fa-check"></i> Wiederherstellen
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Cache-Busting -->(Mobile lädt sonst gern alte JS-Versionen aus dem Cache) -->
+<script src="js/audio-visualizer.js?v=20260720_1"></script>
+<script src="js/mod/offline-storage.js?v=20260816_1"></script>
+<script src="js/app.js?v=20260829_4"></script>
+<script src="js/mod/mehrfachauswahl.js?v=20260517_1"></script>
+<script src="js/mod/karte.js?v=20260520_1"></script>
+<!-- ════════════════════════════════════════════
+     FORMULAR MODALS
+     ════════════════════════════════════════════ -->
+
+<!-- Vorlage erstellen Modal -->
+<div class="modal-overlay" id="templateCreateModalOverlay" style="z-index: 4000;">
+    <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3>Neue Formularvorlage</h3>
+            <button class="header-btn" onclick="App.closeTemplateCreateModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Als Basis verwenden</label>
+                <select id="templateBaseSelect" class="form-control" onchange="App.onTemplateBaseSelect(this.value)">
+                    <option value="">-- Leere Vorlage --</option>
+                </select>
+                <small class="text-muted">Wählen Sie eine bestehende Vorlage als Ausgangspunkt.</small>
+            </div>
+            <div class="form-group">
+                <label>Name der Vorlage</label>
+                <input type="text" id="templateName" class="form-control" placeholder="z.B. Montage-Bericht">
+            </div>
+            <div class="form-group">
+                <label>Felder (JSON Struktur)</label>
+                <textarea id="templateStructure" class="form-control" rows="10" placeholder='{ "fields": [ { "id": "kunde", "label": "Kunde" }, { "id": "datum", "label": "Datum" } ] }'></textarea>
+                <small class="text-muted">Geben Sie die Felder im JSON-Format an.</small>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="App.closeTemplateCreateModal()">Abbrechen</button>
+            <button class="btn btn-primary" onclick="App.saveTemplate()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- Vorlage auswählen Modal -->
+<div class="modal-overlay" id="formSelectModalOverlay" style="z-index: 4000;">
+    <div class="modal" id="formSelectModal">
+        <div class="modal-header">
+            <h3>Formular wählen</h3>
+            <div class="modal-header-actions">
+                <button class="header-btn" id="formSelectFullscreen" aria-label="Vollbild" title="Vollbildmodus" onclick="App.toggleFormSelectFullscreen()">
+                    <i class="fas fa-expand"></i>
+                </button>
+                <button class="header-btn" onclick="App.closeFormSelectModal()"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+                <input type="text" id="formSelectSearch" class="form-control" placeholder="Formular suchen..." oninput="App.filterFormSelection(this.value)">
+            </div>
+            <div id="formSelectList" class="list-group">
+                <!-- Vorlagen via JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Formular ausfüllen Modal -->
+<div class="modal-overlay" id="formFillModalOverlay" style="z-index: 4100;">
+    <div class="modal fullscreen">
+        <div class="modal-header" style="background: #2c3e50 !important; color: white !important; border-bottom: none !important; height: 50px !important; padding: 0 20px !important; display: flex !important; align-items: center !important; justify-content: space-between !important;">
+            <h3 id="formFillTitle" style="color: white !important; margin: 0; font-size: 0.95rem !important;">Formular ausfüllen</h3>
+            <div class="modal-header-actions">
+                <button onclick="App.closeFormFillModal()" style="background:#3b82f6 !important; color:white !important; border:none !important; padding:8px 15px !important; border-radius:5px !important; cursor:pointer !important; font-weight:bold !important; font-size: 0.85rem !important;">
+                    <i class="fas fa-times"></i> Schließen
+                </button>
+            </div>
+        </div>
+        <div class="modal-body" style="background: #eee; padding: 20px; display: flex; justify-content: center; align-items: flex-start;">
+            <div id="formFillBody" class="designer-canvas-area" style="padding: 0; background: none; box-shadow: none;">
+                <!-- WYSIWYG Formular via JS -->
+            </div>
+            <input type="file" id="formFillBgUpload" hidden accept="image/*" onchange="App.handleFormFillBgUpload(event)">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="App.submitFilledForm()">Als PDF speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- Form Designer Modal -->
+<div class="modal-overlay" id="formDesignerModalOverlay" style="z-index: 5000;">
+    <div class="modal" id="formDesignerModal">
+        <div class="modal-header">
+            <h3 id="designerTitle">Grafischer Formular-Editor</h3>
+            <div class="modal-header-actions">
+                <button class="header-btn" id="designerFullscreen" onclick="App.toggleDesignerFullscreen()" aria-label="Vollbild" title="Vollbildmodus">
+                    <i class="fas fa-expand"></i>
+                </button>
+                <button class="header-btn" onclick="App.closeFormDesigner()" aria-label="Schließen">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="form-designer-container">
+            <div class="designer-toolbar">
+                <div class="designer-toolbar-section">
+                    <div class="prop-group" style="width: 100%;">
+                        <input type="text" id="designerTemplateName" class="form-control form-control-sm" placeholder="Vorlagenname" oninput="App.updateDesignerTemplateName()">
+                    </div>
+                </div>
+                <div class="designer-toolbar-section">
+                    <small class="designer-section-title">Basis-Elemente</small>
+                    <div class="designer-grid-tools">
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('text')" title="Text">
+                            <i class="fas fa-font"></i>
+                            <span>Text</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('field')" title="Eingabefeld">
+                            <i class="fas fa-edit"></i>
+                            <span>Feld</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('date')" title="Datum">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Datum</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('autonum')" title="Auto-Nummer">
+                            <i class="fas fa-list-ol"></i>
+                            <span>Nr.</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="designer-toolbar-section">
+                    <small class="designer-section-title">Layout & Formen</small>
+                    <div class="designer-grid-tools">
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('box')" title="Rahmen">
+                            <i class="far fa-square"></i>
+                            <span>Rahmen</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('line')" title="Linie (H)">
+                            <i class="fas fa-minus"></i>
+                            <span>Linie H</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('line', {orientation:'vertical'})" title="Linie (V)">
+                            <i class="fas fa-grip-lines-vertical"></i>
+                            <span>Linie V</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('bullet')" title="Punkt">
+                            <i class="fas fa-circle" style="font-size: 8px;"></i>
+                            <span>Punkt</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="designer-toolbar-section">
+                    <small class="designer-section-title">Spezial-Elemente</small>
+                    <div class="designer-grid-tools">
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('table')" title="Tabelle">
+                            <i class="fas fa-table"></i>
+                            <span>Tabelle</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('checkbox')" title="Checkbox">
+                            <i class="far fa-check-square"></i>
+                            <span>Check</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddImage()" title="Bild">
+                            <i class="fas fa-image"></i>
+                            <span>Bild</span>
+                        </button>
+                        <button class="designer-tool-btn" onclick="App.designerAddElement('signature')" title="Signatur">
+                            <i class="fas fa-signature"></i>
+                            <span>Signatur</span>
+                        </button>
+                    </div>
+                    <input type="file" id="designerImageUpload" hidden accept="image/*" onchange="App.designerHandleImageUpload(event)">
+                </div>
+
+                <div id="designerPropertiesPanel" class="designer-toolbar-section hidden">
+                    <small class="designer-section-title">Eigenschaften</small>
+                    
+                    <div class="designer-prop-subgroup">
+                        <small class="designer-subgroup-title">Inhalt & Identität</small>
+                        <div class="prop-group" id="propGroupContent">
+                            <label>Inhalt / Label</label>
+                            <input type="text" id="designerPropContent" class="form-control form-control-sm" oninput="App.designerUpdateActiveProp('content', this.value)">
+                        </div>
+
+                        <div class="prop-group" id="propGroupId">
+                            <label>Daten-ID</label>
+                            <input type="text" id="designerPropId" class="form-control form-control-sm" oninput="App.designerUpdateActiveProp('id', this.value)">
+                        </div>
+
+                        <div id="propGroupNextNumber" class="prop-group hidden">
+                            <label>Startnummer</label>
+                            <input type="number" id="designerElementNextNumber" class="form-control form-control-sm" placeholder="z.B. 1000" oninput="App.designerUpdateNextNumber(this.value)">
+                        </div>
+                    </div>
+
+                    <div class="designer-prop-subgroup" id="propGroupTypography">
+                        <small class="designer-subgroup-title">Typografie</small>
+                        <div class="prop-group" id="propGroupFontFamily">
+                            <label>Schriftart</label>
+                            <select id="designerPropFontFamily" class="form-control form-control-sm" onchange="App.designerUpdateActiveProp('fontFamily', this.value)">
+                                <option value="inherit">Standard</option>
+                                <option value="Arial, sans-serif">Arial</option>
+                                <option value="Times New Roman, serif">Times New Roman</option>
+                                <option value="Courier New, monospace">Courier New</option>
+                                <option value="Georgia, serif">Georgia</option>
+                                <option value="Verdana, sans-serif">Verdana</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="prop-group flex-1" id="propGroupFontSize">
+                                <label>Größe (px)</label>
+                                <input type="number" id="designerPropFontSize" class="form-control form-control-sm" oninput="App.designerUpdateActiveProp('fontSize', this.value + 'px')">
+                            </div>
+                            <div class="prop-group flex-1" id="propGroupTextStyle">
+                                <label>Stil</label>
+                                <div class="flex gap-1">
+                                    <button class="btn btn-secondary btn-sm flex-1" id="btnPropBold" onclick="App.designerToggleStyle('bold')" title="Fett"><i class="fas fa-bold"></i></button>
+                                    <button class="btn btn-secondary btn-sm flex-1" id="btnPropItalic" onclick="App.designerToggleStyle('italic')" title="Kursiv"><i class="fas fa-italic"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="prop-group mt-2">
+                            <label>Textausrichtung</label>
+                            <div class="flex gap-1">
+                                <button class="btn btn-secondary btn-sm flex-1" id="btnPropAlignLeft" onclick="App.designerSetAlign('left')" title="Links bündig"><i class="fas fa-align-left"></i></button>
+                                <button class="btn btn-secondary btn-sm flex-1" id="btnPropAlignCenter" onclick="App.designerSetAlign('center')" title="Zentriert"><i class="fas fa-align-center"></i></button>
+                                <button class="btn btn-secondary btn-sm flex-1" id="btnPropAlignRight" onclick="App.designerSetAlign('right')" title="Rechts bündig"><i class="fas fa-align-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="designer-prop-subgroup">
+                        <small class="designer-subgroup-title">Dimensionen & Stil</small>
+                        <div class="flex gap-2">
+                            <div class="prop-group flex-1">
+                                <label>Breite</label>
+                                <input type="number" id="designerPropWidth" class="form-control form-control-sm" oninput="App.designerUpdateActiveProp('width', parseInt(this.value))">
+                            </div>
+                            <div class="prop-group flex-1" id="propGroupHeight">
+                                <label>Höhe</label>
+                                <input type="number" id="designerPropHeight" class="form-control form-control-sm" oninput="App.designerUpdateActiveProp('height', parseInt(this.value))">
+                            </div>
+                        </div>
+
+                        <div class="prop-group" id="propGroupThickness">
+                            <label>Stärke (px)</label>
+                            <input type="number" id="designerPropThickness" class="form-control form-control-sm" oninput="App.designerUpdateActiveProp('thickness', this.value + 'px')">
+                        </div>
+
+                        <div id="propGroupUnderline" class="prop-group">
+                            <div class="flex items-center gap-2 mb-1">
+                                <input type="checkbox" id="designerPropHasUnderline" onchange="App.designerUpdateActiveProp('hasUnderline', this.checked)">
+                                <label style="margin-bottom: 0;">Unterstreichung</label>
+                            </div>
+                            <div id="propGroupUnderlineWidth" class="hidden">
+                                <label>Breite (%)</label>
+                                <input type="number" id="designerPropUnderlineWidth" class="form-control form-control-sm" placeholder="100" oninput="App.designerUpdateActiveProp('underlineWidth', (this.value || '100') + '%')">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="prop-group" id="propGroupTable">
+                        <small class="designer-subgroup-title">Tabellen-Konfiguration</small>
+                        <div class="flex gap-1 mb-2">
+                            <div class="flex-1">
+                                <label>Zeilen</label>
+                                <input type="number" id="designerPropRows" min="0" class="form-control form-control-sm" oninput="App.designerUpdateActiveProp('rows', this.value)">
+                            </div>
+                            <div class="flex-1">
+                                <label>Spalten</label>
+                                <input type="number" id="designerPropCols" min="0" class="form-control form-control-sm" oninput="App.designerUpdateActiveProp('cols', this.value)">
+                            </div>
+                        </div>
+                        
+                        <div id="propGroupTableCell" class="designer-prop-subgroup hidden" style="background: rgba(59, 130, 246, 0.05); padding: 8px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.1);">
+                            <label style="font-weight: bold; color: var(--primary); display: block; margin-bottom: 8px;">Zelle (<span id="selectedCellCoords">-</span>)</label>
+                            <div class="prop-group mb-2">
+                                <label>Typ</label>
+                                <select id="designerPropCellType" class="form-control form-control-sm" onchange="App.designerUpdateCellProp('type', this.value)">
+                                    <option value="input">Eingabefeld</option>
+                                    <option value="text">Festtext / Label</option>
+                                    <option value="calc">Berechnung</option>
+                                </select>
+                            </div>
+                            <div id="designerCellTextOptions" class="hidden">
+                                <div class="prop-group mb-1">
+                                    <label>Inhalt</label>
+                                    <input type="text" id="designerPropCellText" class="form-control form-control-sm" placeholder="z.B. MwSt" oninput="App.designerUpdateCellProp('content', this.value)">
+                                </div>
+                            </div>
+                            <div id="designerCellCalcOptions" class="hidden">
+                                <div class="prop-group mb-1">
+                                    <label>Modus</label>
+                                    <select id="designerPropCellCalcMode" class="form-control form-control-sm" onchange="App.designerUpdateCellProp('calcMode', this.value)">
+                                        <option value="auto">Summe (Auto)</option>
+                                        <option value="manual">Eigene Formel</option>
+                                    </select>
+                                </div>
+                                <div id="designerCellManualFormula" class="hidden">
+                                    <div class="prop-group mb-1">
+                                        <label>Formel</label>
+                                        <input type="text" id="designerPropCellFormula" class="form-control form-control-sm" placeholder="S1 * S2" oninput="App.designerUpdateCellProp('formula', this.value)">
+                                    </div>
+                                </div>
+                                <div id="designerCellAutoOptions">
+                                    <div class="prop-group mb-1">
+                                        <label>Richtung</label>
+                                        <select id="designerPropCellDir" class="form-control form-control-sm" onchange="App.designerUpdateCellProp('dir', this.value)">
+                                            <option value="row">Zeile</option>
+                                            <option value="col">Spalte</option>
+                                        </select>
+                                    </div>
+                                    <div class="prop-group mb-1">
+                                        <label>OP</label>
+                                        <select id="designerPropCellOp" class="form-control form-control-sm" onchange="App.designerUpdateCellProp('op', this.value)">
+                                            <option value="+">+</option>
+                                            <option value="-">-</option>
+                                            <option value="*">*</option>
+                                            <option value="%">%</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="designerNoCellSelection" class="text-muted small text-center">
+                            Zelle wählen für Formeln
+                        </div>
+                    </div>
+
+                    <button class="btn btn-danger btn-sm w-full mt-4" onclick="App.designerDeleteSelected()">
+                        <i class="fas fa-trash"></i> Element löschen
+                    </button>
+                </div>
+
+                <div id="designerNoSelection" class="text-muted small text-center p-2">
+                    Wählen Sie ein Element zum Bearbeiten.
+                </div>
+
+                <div class="designer-toolbar-section">
+                    <small class="designer-section-title">Werkzeuge</small>
+                    <button class="btn btn-secondary btn-sm w-full active" id="btnDesignerSnap" onclick="App.designerToggleSnap()">
+                        <i class="fas fa-th"></i> Raster-Snap
+                    </button>
+                </div>
+
+                <div class="designer-toolbar-section">
+                    <small class="designer-section-title">Hintergrund</small>
+                    <div class="designer-bg-upload-container">
+                        <div class="designer-bg-drop-box" id="designerBgDropZone" onclick="document.getElementById('designerBgUpload').click()">
+                            <i class="fas fa-upload"></i>
+                            <span>Upload</span>
+                            <input type="file" id="designerBgUpload" hidden accept="image/*" onchange="App.designerHandleBgUpload(event)">
+                        </div>
+                        <div class="designer-bg-actions">
+                            <button class="designer-action-btn" id="btnDesignerEditBg" onclick="App.designerSelectBg()" title="Transformieren">
+                                <i class="fas fa-arrows-alt"></i>
+                            </button>
+                            <button class="designer-action-btn" onclick="App.designerClearBg()" title="Löschen">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="designerBgControls" class="hidden mt-2 designer-prop-subgroup">
+                        <div class="prop-group mb-2">
+                            <label>Größe</label>
+                            <select id="designerPropBgSize" class="form-control form-control-sm" onchange="App.designerUpdateBgProp('bgSize', this.value)">
+                                <option value="contain">Einpassen</option>
+                                <option value="100% 100%">Strecken</option>
+                                <option value="cover">Füllen</option>
+                                <option value="auto">Original</option>
+                                <option value="manual">Manuell</option>
+                            </select>
+                        </div>
+                        <div class="prop-group mb-2" id="propGroupBgPos">
+                            <label>Ausrichtung</label>
+                            <select id="designerPropBgPos" class="form-control form-control-sm" onchange="App.designerUpdateBgProp('bgPos', this.value)">
+                                <option value="center">Zentriert</option>
+                                <option value="top center">Oben</option>
+                                <option value="bottom center">Unten</option>
+                                <option value="center left">Links</option>
+                                <option value="center right">Rechts</option>
+                            </select>
+                        </div>
+
+                        <div id="designerBgManualControls" class="hidden">
+                            <div class="flex gap-1 mb-1">
+                                <div class="prop-group flex-1">
+                                    <label>X (px)</label>
+                                    <input type="number" id="designerPropBgX" class="form-control form-control-sm" oninput="App.designerUpdateBgProp('bgX', parseInt(this.value))">
+                                </div>
+                                <div class="prop-group flex-1">
+                                    <label>Y (px)</label>
+                                    <input type="number" id="designerPropBgY" class="form-control form-control-sm" oninput="App.designerUpdateBgProp('bgY', parseInt(this.value))">
+                                </div>
+                            </div>
+                            <div class="flex gap-1">
+                                <div class="prop-group flex-1">
+                                    <label>W</label>
+                                    <input type="number" id="designerPropBgW" class="form-control form-control-sm" oninput="App.designerUpdateBgProp('bgW', parseInt(this.value))">
+                                </div>
+                                <div class="prop-group flex-1">
+                                    <label>H</label>
+                                    <input type="number" id="designerPropBgH" class="form-control form-control-sm" oninput="App.designerUpdateBgProp('bgH', parseInt(this.value))">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="designer-canvas-area" id="designerCanvasArea" onmousedown="App.designerOnCanvasMouseDown(event)">
+                <div class="designer-page" id="designerPage" style="width: 800px; height: 1131px;">
+                    <!-- Elemente hier -->
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="App.saveDesignerTemplate()">
+                <i class="fas fa-save"></i> Speichern
+            </button>
+        </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hover Vorschau Container -->
+<div id="attachmentHoverPreview" class="attachment-preview-hover"></div>
+
+<!-- Chat-Raum Erstellen Modal -->
+<div id="chatCreateRoomModal" class="modal-overlay">
+    <div class="modal modal-small confirm-box">
+        <h4 style="margin-bottom: 8px;"><i class="fas fa-comments"></i> Neuen Chat-Raum erstellen</h4>
+        <div class="form-group" style="margin-bottom: 20px;">
+            <input type="text" id="chatRoomName" class="form-control" placeholder="Name des Chat-Raums eingeben..." autocomplete="off">
+        </div>
+        <div class="confirm-actions">
+            <button class="btn btn-secondary" onclick="App.closeChatCreateRoomModal()">Abbrechen</button>
+            <button class="btn btn-primary" onclick="App.submitChatCreateRoom()">
+                <i class="fas fa-plus"></i> Erstellen
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bestätigungs-Modal -->
+<div id="confirmModal" class="modal-overlay">
+    <div class="modal modal-small confirm-box">
+        <h4 id="confirmModalTitle" style="margin-bottom: 8px;"><i class="fas fa-exclamation-triangle"></i> Bestätigung</h4>
+        <p id="confirmModalMessage">Möchten Sie diese Aktion wirklich durchführen?</p>
+        <div class="confirm-actions">
+            <button class="btn btn-secondary" onclick="App.closeConfirmModal()">Abbrechen</button>
+            <button class="btn btn-primary" id="confirmModalConfirmBtn">
+                <i class="fas fa-check"></i> Bestätigen
+            </button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

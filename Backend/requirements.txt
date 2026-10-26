@@ -1,0 +1,17 @@
+flask
+flask-cors
+flask-compress
+bcrypt
+blinker
+click
+colorama
+itsdangerous
+jinja2
+markupsafe
+psutil
+werkzeug
+Pillow
+pypdfium2
+imagehash==4.3.2
+numpy>=2.0.0
+opencv-python>=4.8.0

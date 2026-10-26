@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORDAMA - Medienansicht</title>
+    <link rel="stylesheet" href="fonts/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+            color: white;
+            font-family: sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            overscroll-behavior-y: contain;
+        }
+        .header {
+            height: 50px;
+            padding: 0 20px;
+            background: #2c3e50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            flex-shrink: 0;
+        }
+        .title {
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 20px;
+            max-width: 60%;
+        }
+        .pdf-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .pdf-controls button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .pdf-controls button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .pdf-controls input {
+            width: 50px;
+            padding: 6px;
+            border: none;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .search-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-left: 10px;
+            padding-left: 10px;
+            border-left: 1px solid rgba(255,255,255,0.2);
+        }
+        .search-controls button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .search-controls button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .search-count {
+            font-size: 12px;
+            color: #dbeafe;
+            min-width: 60px;
+            text-align: center;
+        }
+        .content {
+            flex: 1;
+            width: 100%;
+            height: calc(100% - 50px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: #111;
+            overflow: auto;
+        }
+        html.video-page-fullscreen,
+        body.video-page-fullscreen {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+        }
+        body.video-page-fullscreen .header,
+        body.video-page-fullscreen .mobile-hint,
+        body.video-page-fullscreen .match-info {
+            display: none !important;
+        }
+        body.video-page-fullscreen .content {
+            width: 100vw;
+            height: 100vh;
+            min-height: 100vh;
+            flex: none;
+            background: #000;
+        }
+        img, video {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        video::-webkit-media-controls {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-enclosure {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-panel {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-play-button {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-timeline {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-current-time-display {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-time-remaining-display {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-mute-button {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-volume-slider {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-fullscreen-button {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-toggle-closed-captions-button {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        video::-webkit-media-controls-overlay-enclosure {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        .pdf-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            max-width: 100%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .error-msg {
+            padding: 40px;
+            text-align: center;
+            color: #e74c3c;
+        }
+        .mobile-hint {
+            display: none;
+            padding: 10px;
+            background: #f39c12;
+            color: black;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+        .match-info {
+            display: none;
+            padding: 10px 16px;
+            background: rgba(59, 130, 246, 0.16);
+            border-top: 1px solid rgba(59, 130, 246, 0.25);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.25);
+            color: #dbeafe;
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+        .viewer-video-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+        .viewer-video-wrapper {
+            position: relative;
+            width: 100%;
+            height: calc(100% - 60px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #000;
+        }
+        .viewer-video-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 10px 20px;
+            background: #2c3e50;
+            box-sizing: border-box;
+        }
+        .viewer-video-container.custom-fullscreen {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: #000;
+        }
+        .viewer-video-container:fullscreen,
+        .viewer-video-container:-webkit-full-screen,
+        .viewer-video-container:-ms-fullscreen {
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+        .viewer-video-container.custom-fullscreen .viewer-video-wrapper {
+            width: 100vw;
+            height: calc(100vh - 64px);
+        }
+        .viewer-video-container:fullscreen .viewer-video-wrapper,
+        .viewer-video-container:-webkit-full-screen .viewer-video-wrapper,
+        .viewer-video-container:-ms-fullscreen .viewer-video-wrapper {
+            width: 100vw;
+            height: calc(100vh - 64px);
+        }
+        .viewer-video-container.custom-fullscreen .viewer-video-controls {
+            padding: 12px 20px;
+            background: rgba(44, 62, 80, 0.96);
+        }
+        .viewer-video-container:fullscreen .viewer-video-controls,
+        .viewer-video-container:-webkit-full-screen .viewer-video-controls,
+        .viewer-video-container:-ms-fullscreen .viewer-video-controls {
+            padding: 12px 20px;
+            background: rgba(44, 62, 80, 0.96);
+        }
+        .viewer-fullscreen-hint {
+            position: absolute;
+            top: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: rgba(17, 24, 39, 0.84);
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 500;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 2;
+        }
+        .viewer-fullscreen-hint.visible {
+            opacity: 1;
+        }
+        @media (max-width: 768px) {
+            .mobile-hint { display: block; }
+            .viewer-fullscreen-hint {
+                max-width: calc(100vw - 24px);
+                white-space: normal;
+                text-align: center;
+            }
+        }
+        .ordama-audio-shell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: min(800px, calc(100vw - 80px));
+            max-width: 800px;
+            max-height: calc(100vh - 120px);
+            box-sizing: border-box;
+            background: #3b82f6;
+            padding: 48px 40px;
+            border-radius: 8px;
+        }
+        .ordama-audio-viz-slot {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            width: 100%;
+            height: 96px;
+            margin-bottom: 32px;
+        }
+        .ordama-audio-controls-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+        }
+        .ordama-audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+        }
+        .ordama-audio-play-btn {
+            background: white;
+            border: none;
+            border-radius: 50%;
+            width: 72px;
+            height: 72px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #3b82f6;
+            font-size: 28px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            flex-shrink: 0;
+        }
+        .ordama-audio-play-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+        }
+        .ordama-audio-progress {
+            flex: 1;
+            height: 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .ordama-audio-progress-bar {
+            height: 100%;
+            background: white;
+            width: 0%;
+            transition: width 0.1s;
+        }
+        .ordama-audio-volume {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .ordama-audio-volume-icon {
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .ordama-audio-volume-slider {
+            width: 120px;
+            cursor: pointer;
+            height: 8px;
+            accent-color: white;
+        }
+        .ordama-audio-time-row {
+            display: flex;
+            justify-content: space-between;
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            padding-left: 92px;
+            padding-right: 156px;
+            width: 100%;
+        }
+        .ordama-audio-hidden {
+            display: none;
+        }
+        .ordama-audio-viz-slot .audio-viz {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 4px;
+            height: 100%;
+        }
+        .ordama-audio-viz-slot .audio-viz-bar {
+            display: block;
+            width: 6px;
+            height: 100%;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.22);
+            transform-origin: center bottom;
+            transform: scaleY(0.15);
+            transition: transform 0.05s linear;
+        }
+        .ordama-audio-viz-slot .audio-viz.is-fallback.is-playing .audio-viz-bar {
+            animation: audio-viz-pulse 0.9s ease-in-out infinite alternate;
+        }
+        @keyframes audio-viz-pulse {
+            from { transform: scaleY(0.18); }
+            to { transform: scaleY(0.85); }
+        }
+    </style>
+    <script src="js/audio-visualizer.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="title" id="fileTitle">Lade Datei...</div>
+        <div class="pdf-controls" id="pdfControls" style="display: none;">
+            <button id="prevBtn"><i class="fas fa-chevron-left"></i></button>
+            <span id="pageInfo">Seite 1 / 1</span>
+            <button id="nextBtn"><i class="fas fa-chevron-right"></i></button>
+            <div class="search-controls" id="searchControls" style="display: none;">
+                <button id="prevMatchBtn" title="Vorheriger Treffer"><i class="fas fa-chevron-up"></i></button>
+                <span class="search-count" id="searchCount">0 / 0</span>
+                <button id="nextMatchBtn" title="Nächster Treffer"><i class="fas fa-chevron-down"></i></button>
+            </div>
+            <button id="closeBtn"><i class="fas fa-times"></i> Schließen</button>
+        </div>
+        <div class="actions" id="defaultActions">
+            <button onclick="window.close()" style="background:#3b82f6; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold;">
+                <i class="fas fa-times"></i> Schließen
+            </button>
+        </div>
+    </div>
+    <div id="mobileHint" class="mobile-hint">
+        Tipp: Nutze zwei Finger zum Zoomen im Dokument.
+    </div>
+    <div id="matchInfo" class="match-info"></div>
+    <div class="content" id="viewerContent">
+        <!-- Inhalt wird via JS geladen -->
+    </div>
+
+    <script>
+        // Parameter aus URL extrahieren
+        const params = new URLSearchParams(window.location.search);
+        const url = params.get('url');
+        const filename = params.get('name');
+        const type = params.get('type');
+        const initialPage = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
+        const highlightText = params.get('highlight') || '';
+        const storageKey = params.get('storageKey');
+
+        if (filename) document.getElementById('fileTitle').textContent = filename;
+
+        const content = document.getElementById('viewerContent');
+        const pdfControls = document.getElementById('pdfControls');
+        const defaultActions = document.getElementById('defaultActions');
+        const matchInfo = document.getElementById('matchInfo');
+
+        if (highlightText) {
+            matchInfo.textContent = `Treffer: ${highlightText}`;
+            matchInfo.style.display = 'block';
+        }
+
+        // Rechtsklick-Schutz
+        function applyProtection(el) {
+            el.oncontextmenu = function(e) {
+                e.preventDefault();
+                return false;
+            };
+        }
+
+        // PDF.js variables
+        let pdfDoc = null;
+        let pageNum = initialPage;
+        let pageRendering = false;
+        let pageNumPending = null;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Search variables
+        let searchMatches = [];
+        let currentMatchIndex = -1;
+        let searchText = highlightText;
+
+        // Get page info from document, resize canvas, and render page
+        function renderPage(num) {
+            pageRendering = true;
+            pdfDoc.getPage(num).then(function(page) {
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale: scale });
+
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                const renderTask = page.render(renderContext);
+
+                renderTask.promise.then(function() {
+                    pageRendering = false;
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
+            });
+
+            document.getElementById('pageInfo').textContent = `Seite ${num} / ${pdfDoc.numPages}`;
+            document.getElementById('prevBtn').disabled = num <= 1;
+            document.getElementById('nextBtn').disabled = num >= pdfDoc.numPages;
+        }
+
+        // Queue rendering if necessary
+        function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+        }
+
+        // Previous page
+        function onPrevPage() {
+            if (pageNum <= 1) return;
+            pageNum--;
+            queueRenderPage(pageNum);
+        }
+
+        // Next page
+        function onNextPage() {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
+
+        // Search functions using OCR data from backend
+        function initializeSearch() {
+            // Load search matches from sessionStorage
+            let searchMatchesData = [];
+            if (storageKey) {
+                try {
+                    const storedData = sessionStorage.getItem(storageKey);
+                    if (storedData) {
+                        searchMatchesData = JSON.parse(storedData);
+                        // Clean up sessionStorage after reading
+                        sessionStorage.removeItem(storageKey);
+                    }
+                } catch (e) {
+                    console.error('Fehler beim Lesen aus sessionStorage:', e);
+                }
+            }
+            
+            // Filter matches for current file
+            searchMatches = searchMatchesData.filter(m => 
+                m.filename === filename && m.type === 'ocr'
+            );
+            
+            if (searchMatches.length > 0) {
+                updateSearchCount();
+                
+                // Find first match on or after initial page
+                currentMatchIndex = searchMatches.findIndex(m => m.page >= initialPage);
+                if (currentMatchIndex === -1) currentMatchIndex = 0;
+                
+                // Go to first match
+                goToMatch(currentMatchIndex);
+            }
+        }
+
+        function updateSearchCount() {
+            const count = searchMatches.length;
+            const current = currentMatchIndex >= 0 ? currentMatchIndex + 1 : 0;
+            
+            // Hide search controls if less than 2 matches (no navigation possible)
+            if (count < 2) {
+                document.getElementById('searchControls').style.display = 'none';
+                return;
+            }
+            
+            // Show search controls for 2+ matches
+            document.getElementById('searchControls').style.display = 'flex';
+            document.getElementById('searchCount').textContent = `${current} / ${count}`;
+            document.getElementById('prevMatchBtn').disabled = currentMatchIndex <= 0;
+            document.getElementById('nextMatchBtn').disabled = currentMatchIndex >= searchMatches.length - 1;
+        }
+
+        function goToMatch(index) {
+            if (index < 0 || index >= searchMatches.length) {
+                return;
+            }
+            currentMatchIndex = index;
+            const match = searchMatches[index];
+            
+            if (match.page && match.page !== pageNum) {
+                pageNum = match.page;
+                queueRenderPage(pageNum);
+            }
+            
+            updateSearchCount();
+            
+            // Show match info
+            matchInfo.textContent = `Treffer ${currentMatchIndex + 1} von ${searchMatches.length}: ${match.snippet || searchText}`;
+            matchInfo.style.display = 'block';
+        }
+
+        function onPrevMatch() {
+            if (currentMatchIndex > 0) {
+                goToMatch(currentMatchIndex - 1);
+            }
+        }
+
+        function onNextMatch() {
+            if (currentMatchIndex < searchMatches.length - 1) {
+                goToMatch(currentMatchIndex + 1);
+            }
+        }
+
+        // Load PDF
+        if (type === 'image') {
+            const img = document.createElement('img');
+            img.src = url;
+            applyProtection(img);
+            content.appendChild(img);
+        } else if (type === 'video') {
+            const videoContainer = document.createElement('div');
+            videoContainer.className = 'viewer-video-container';
+            
+            // Wrapper für Video-Interaktionen
+            const videoWrapper = document.createElement('div');
+            videoWrapper.className = 'viewer-video-wrapper';
+            
+            // Blockiere alle Kontextmenüs
+            videoWrapper.oncontextmenu = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            };
+            
+            const video = document.createElement('video');
+            video.style.cssText = 'max-width: 100%; max-height: 100%; object-fit: contain; cursor: pointer;';
+            video.controls = false;
+            video.disablePictureInPicture = true;
+            video.disableRemotePlayback = true;
+            video.playsInline = true;
+            video.setAttribute('playsinline', '');
+            video.setAttribute('controlsList', 'nodownload noplaybackrate nopictureinpicture noremoteplayback nofullscreen');
+            video.setAttribute('preload', 'metadata');  // Optimiertes Buffering für bessere Performance
+            
+            // Erstelle Source-Element separat
+            const source = document.createElement('source');
+            source.src = url;
+            source.type = 'video/mp4';
+            video.appendChild(source);
+            
+            // Entferne ALLE Attribute, die Controls aktivieren könnten
+            video.removeAttribute('controls');
+            video.removeAttribute('controlsList');
+            video.removeAttribute('disablePictureInPicture');
+            video.removeAttribute('autoplay');
+            video.removeAttribute('loop');
+            video.removeAttribute('muted');
+            video.controls = false;
+            video.disablePictureInPicture = true;
+            video.disableRemotePlayback = true;
+            video.setAttribute('controlsList', 'nodownload noplaybackrate nopictureinpicture noremoteplayback nofullscreen');
+            
+            // Buffering-Indikator erstellen
+            const bufferingIndicator = document.createElement('div');
+            bufferingIndicator.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 16px; display: none; z-index: 10; background: rgba(0,0,0,0.7); padding: 20px 30px; border-radius: 8px;';
+            bufferingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Lade Video...';
+            videoWrapper.appendChild(bufferingIndicator);
+            
+            // Buffering-Status überwachen
+            video.addEventListener('waiting', () => {
+                bufferingIndicator.style.display = 'block';
+            });
+            
+            video.addEventListener('playing', () => {
+                bufferingIndicator.style.display = 'none';
+            });
+            
+            video.addEventListener('canplay', () => {
+                bufferingIndicator.style.display = 'none';
+            });
+            
+            // Adaptive Wiedergabe: Start erst wenn genug gepuffert ist
+            let playAttempted = false;
+            video.addEventListener('loadedmetadata', () => {
+                bufferingIndicator.style.display = 'block';
+                // Warte auf ausreichendes Buffering vor dem Start
+                setTimeout(() => {
+                    if (!playAttempted) {
+                        playAttempted = true;
+                        video.play().catch(() => {
+                            bufferingIndicator.style.display = 'none';
+                        });
+                    }
+                }, 500);  // 500ms Buffering-Zeit für bessere Performance
+            });
+            
+            video.addEventListener('error', () => {
+                bufferingIndicator.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Fehler beim Laden';
+                bufferingIndicator.style.display = 'block';
+            });
+            
+            // Blockiere alle Kontextmenüs auf dem Video
+            video.oncontextmenu = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            };
+
+            const fullscreenHint = document.createElement('div');
+            fullscreenHint.className = 'viewer-fullscreen-hint';
+            fullscreenHint.textContent = 'Zum Beenden des Vollbildmodus auf das Video klicken';
+            
+            // Video in Wrapper einfügen
+            videoWrapper.appendChild(video);
+            videoWrapper.appendChild(fullscreenHint);
+            
+            const controlsWrapper = document.createElement('div');
+            controlsWrapper.className = 'viewer-video-controls';
+            
+            const playBtn = document.createElement('button');
+            playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            playBtn.style.cssText = 'background: #3b82f6; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;';
+            
+            const progressContainer = document.createElement('div');
+            progressContainer.style.cssText = 'flex: 1; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden; cursor: pointer;';
+            
+            const progressBar = document.createElement('div');
+            progressBar.style.cssText = 'height: 100%; background: #3b82f6; width: 0%; transition: width 0.1s;';
+            progressContainer.appendChild(progressBar);
+            
+            const timeDisplay = document.createElement('span');
+            timeDisplay.style.cssText = 'color: white; font-size: 14px; font-weight: 500; white-space: nowrap; min-width: 80px;';
+            timeDisplay.textContent = '0:00 / 0:00';
+            
+            const volumeControl = document.createElement('div');
+            volumeControl.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+            
+            const volumeIcon = document.createElement('i');
+            volumeIcon.className = 'fas fa-volume-up';
+            volumeIcon.style.cssText = 'color: white; font-size: 18px; cursor: pointer;';
+            
+            const volumeSlider = document.createElement('input');
+            volumeSlider.type = 'range';
+            volumeSlider.min = '0';
+            volumeSlider.max = '1';
+            volumeSlider.step = '0.1';
+            volumeSlider.value = '1';
+            volumeSlider.style.cssText = 'width: 80px; cursor: pointer; accent-color: #3b82f6;';
+            
+            volumeControl.appendChild(volumeIcon);
+            volumeControl.appendChild(volumeSlider);
+            
+            const fullscreenBtn = document.createElement('button');
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+            fullscreenBtn.style.cssText = 'background: #3b82f6; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;';
+            fullscreenBtn.title = 'Vollbild';
+            
+            controlsWrapper.appendChild(playBtn);
+            controlsWrapper.appendChild(progressContainer);
+            controlsWrapper.appendChild(timeDisplay);
+            controlsWrapper.appendChild(volumeControl);
+            controlsWrapper.appendChild(fullscreenBtn);
+            
+            let isPlaying = true;
+            let fullscreenHintTimeout = null;
+            const enforceVideoRestrictions = () => {
+                video.controls = false;
+                video.removeAttribute('controls');
+                video.disablePictureInPicture = true;
+                video.disableRemotePlayback = true;
+                video.setAttribute('playsinline', '');
+                video.setAttribute('controlsList', 'nodownload noplaybackrate nopictureinpicture noremoteplayback nofullscreen');
+            };
+            const setPageFullscreenClass = (active) => {
+                document.documentElement.classList.toggle('video-page-fullscreen', active);
+                document.body.classList.toggle('video-page-fullscreen', active);
+            };
+
+            const isNativeFullscreenActive = () =>
+                document.fullscreenElement === document.documentElement ||
+                document.webkitFullscreenElement === document.documentElement ||
+                document.msFullscreenElement === document.documentElement ||
+                document.fullscreenElement === document.body ||
+                document.webkitFullscreenElement === document.body ||
+                document.msFullscreenElement === document.body;
+
+            const isFullscreenActive = () =>
+                videoContainer.classList.contains('custom-fullscreen') || isNativeFullscreenActive();
+
+            const showFullscreenHint = () => {
+                fullscreenHint.classList.add('visible');
+                if (fullscreenHintTimeout) {
+                    clearTimeout(fullscreenHintTimeout);
+                }
+                fullscreenHintTimeout = setTimeout(() => {
+                    fullscreenHint.classList.remove('visible');
+                }, 2200);
+            };
+
+            const syncFullscreenButton = () => {
+                const fullscreenActive = isFullscreenActive();
+                fullscreenBtn.innerHTML = fullscreenActive
+                    ? '<i class="fas fa-compress"></i>'
+                    : '<i class="fas fa-expand"></i>';
+                fullscreenBtn.title = fullscreenActive ? 'Vollbild beenden' : 'Vollbild';
+                enforceVideoRestrictions();
+                if (!fullscreenActive) {
+                    fullscreenHint.classList.remove('visible');
+                }
+            };
+
+            const requestNativeFullscreen = async () => {
+                try {
+                    const fullscreenTarget = document.documentElement;
+                    if (fullscreenTarget.requestFullscreen) {
+                        await fullscreenTarget.requestFullscreen();
+                        return true;
+                    }
+                    if (fullscreenTarget.webkitRequestFullscreen) {
+                        fullscreenTarget.webkitRequestFullscreen();
+                        return true;
+                    }
+                    if (fullscreenTarget.msRequestFullscreen) {
+                        fullscreenTarget.msRequestFullscreen();
+                        return true;
+                    }
+                } catch (_) {}
+                return false;
+            };
+
+            const exitNativeFullscreen = async () => {
+                try {
+                    if (document.fullscreenElement && document.exitFullscreen) {
+                        await document.exitFullscreen();
+                        return true;
+                    }
+                    if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                        return true;
+                    }
+                    if (document.msFullscreenElement && document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                        return true;
+                    }
+                } catch (_) {}
+                return false;
+            };
+
+            const setFullscreen = async (shouldEnable) => {
+                if (shouldEnable) {
+                    const enteredNative = await requestNativeFullscreen();
+                    if (!enteredNative) {
+                        videoContainer.classList.add('custom-fullscreen');
+                    }
+                    setPageFullscreenClass(true);
+                    showFullscreenHint();
+                } else {
+                    if (isNativeFullscreenActive()) {
+                        await exitNativeFullscreen();
+                    }
+                    videoContainer.classList.remove('custom-fullscreen');
+                    setPageFullscreenClass(false);
+                    fullscreenHint.classList.remove('visible');
+                }
+                syncFullscreenButton();
+            };
+            
+            playBtn.onclick = () => {
+                if (isPlaying) {
+                    video.pause();
+                    playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                    isPlaying = false;
+                } else {
+                    video.play();
+                    playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                    isPlaying = true;
+                }
+            };
+            
+            video.ontimeupdate = () => {
+                const percent = (video.currentTime / video.duration) * 100;
+                progressBar.style.width = percent + '%';
+                timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+            };
+            
+            video.onloadedmetadata = () => {
+                timeDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
+            };
+            
+            video.onended = () => {
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                isPlaying = false;
+                progressBar.style.width = '0%';
+            };
+            
+            progressContainer.onclick = (e) => {
+                const rect = progressContainer.getBoundingClientRect();
+                const percent = (e.clientX - rect.left) / rect.width;
+                video.currentTime = percent * video.duration;
+            };
+            
+            volumeSlider.oninput = () => {
+                video.volume = volumeSlider.value;
+                if (video.volume === 0) {
+                    volumeIcon.className = 'fas fa-volume-mute';
+                } else if (video.volume < 0.5) {
+                    volumeIcon.className = 'fas fa-volume-down';
+                } else {
+                    volumeIcon.className = 'fas fa-volume-up';
+                }
+            };
+            
+            volumeIcon.onclick = () => {
+                if (video.volume > 0) {
+                    video.dataset.prevVolume = video.volume;
+                    video.volume = 0;
+                    volumeSlider.value = '0';
+                    volumeIcon.className = 'fas fa-volume-mute';
+                } else {
+                    video.volume = video.dataset.prevVolume || '1';
+                    volumeSlider.value = video.volume;
+                    volumeIcon.className = 'fas fa-volume-up';
+                }
+            };
+            
+            fullscreenBtn.onclick = () => {
+                setFullscreen(!isFullscreenActive());
+            };
+
+            // Klick auf Video beendet den Vollbildmodus
+            video.addEventListener('click', async (e) => {
+                if (isFullscreenActive()) {
+                    e.preventDefault();
+                    await setFullscreen(false);
+                }
+            });
+            video.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+            });
+            const handleFullscreenChange = () => {
+                setPageFullscreenClass(isFullscreenActive());
+                syncFullscreenButton();
+            };
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.addEventListener('msfullscreenchange', handleFullscreenChange);
+            
+            function formatTime(seconds) {
+                if (isNaN(seconds)) return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            videoContainer.appendChild(videoWrapper);
+            videoContainer.appendChild(controlsWrapper);
+            applyProtection(videoContainer);
+            content.appendChild(videoContainer);
+        } else if (type === 'audio') {
+            const audioContainer = document.createElement('div');
+            audioContainer.className = 'ordama-audio-shell';
+            
+            const vizSlot = document.createElement('div');
+            vizSlot.className = 'ordama-audio-viz-slot';
+            
+            const controlsWrapper = document.createElement('div');
+            controlsWrapper.className = 'ordama-audio-controls-stack';
+            
+            const controls = document.createElement('div');
+            controls.className = 'ordama-audio-controls';
+            
+            const playBtn = document.createElement('button');
+            playBtn.className = 'ordama-audio-play-btn';
+            playBtn.innerHTML = '<i class="fas fa-play"></i>';
+            
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'ordama-audio-progress';
+            
+            const progressBar = document.createElement('div');
+            progressBar.className = 'ordama-audio-progress-bar';
+            progressContainer.appendChild(progressBar);
+            
+            const volumeControl = document.createElement('div');
+            volumeControl.className = 'ordama-audio-volume';
+            
+            const volumeIcon = document.createElement('i');
+            volumeIcon.className = 'fas fa-volume-up ordama-audio-volume-icon';
+            
+            const volumeSlider = document.createElement('input');
+            volumeSlider.className = 'ordama-audio-volume-slider';
+            volumeSlider.type = 'range';
+            volumeSlider.min = '0';
+            volumeSlider.max = '1';
+            volumeSlider.step = '0.1';
+            volumeSlider.value = '1';
+            
+            volumeControl.appendChild(volumeIcon);
+            volumeControl.appendChild(volumeSlider);
+            
+            controls.appendChild(playBtn);
+            controls.appendChild(progressContainer);
+            controls.appendChild(volumeControl);
+            
+            const timeRow = document.createElement('div');
+            timeRow.className = 'ordama-audio-time-row';
+            
+            const currentTime = document.createElement('span');
+            currentTime.textContent = '0:00';
+            
+            const durationTime = document.createElement('span');
+            durationTime.textContent = '0:00';
+            
+            timeRow.appendChild(currentTime);
+            timeRow.appendChild(durationTime);
+            
+            const audio = document.createElement('audio');
+            audio.className = 'ordama-audio-hidden';
+            audio.src = url;
+            
+            const visualizer = window.AudioVisualizer
+                ? window.AudioVisualizer.attach(vizSlot, audio, { barCount: 16, className: 'audio-viz' })
+                : null;
+            
+            let isPlaying = false;
+            
+            playBtn.onclick = () => {
+                if (isPlaying) {
+                    audio.pause();
+                    playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                    isPlaying = false;
+                    if (visualizer) visualizer.stop();
+                } else {
+                    audio.play().then(() => {
+                        if (visualizer) visualizer.start();
+                    }).catch(() => {});
+                    playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                    isPlaying = true;
+                }
+            };
+            
+            audio.ontimeupdate = () => {
+                const percent = (audio.currentTime / audio.duration) * 100;
+                progressBar.style.width = percent + '%';
+                currentTime.textContent = formatTime(audio.currentTime);
+                durationTime.textContent = formatTime(audio.duration);
+            };
+            
+            audio.onloadedmetadata = () => {
+                durationTime.textContent = formatTime(audio.duration);
+            };
+            
+            audio.onended = () => {
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                isPlaying = false;
+                progressBar.style.width = '0%';
+                currentTime.textContent = '0:00';
+                if (visualizer) visualizer.stop();
+            };
+            
+            progressContainer.onclick = (e) => {
+                const rect = progressContainer.getBoundingClientRect();
+                const percent = (e.clientX - rect.left) / rect.width;
+                audio.currentTime = percent * audio.duration;
+            };
+            
+            volumeSlider.oninput = () => {
+                audio.volume = volumeSlider.value;
+                if (audio.volume === 0) {
+                    volumeIcon.className = 'fas fa-volume-mute';
+                } else if (audio.volume < 0.5) {
+                    volumeIcon.className = 'fas fa-volume-down';
+                } else {
+                    volumeIcon.className = 'fas fa-volume-up';
+                }
+            };
+            
+            volumeIcon.onclick = () => {
+                if (audio.volume > 0) {
+                    audio.dataset.prevVolume = audio.volume;
+                    audio.volume = 0;
+                    volumeSlider.value = '0';
+                    volumeIcon.className = 'fas fa-volume-mute';
+                } else {
+                    audio.volume = audio.dataset.prevVolume || '1';
+                    volumeSlider.value = audio.volume;
+                    volumeIcon.className = 'fas fa-volume-up';
+                }
+            };
+            
+            function formatTime(seconds) {
+                if (isNaN(seconds)) return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            controlsWrapper.appendChild(controls);
+            controlsWrapper.appendChild(timeRow);
+            audioContainer.appendChild(vizSlot);
+            audioContainer.appendChild(controlsWrapper);
+            audioContainer.appendChild(audio);
+            content.appendChild(audioContainer);
+            
+            // Autoplay
+            audio.play().then(() => {
+                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                isPlaying = true;
+                if (visualizer) visualizer.start();
+            }).catch(() => {
+                // Autoplay might be blocked
+            });
+            
+            applyProtection(audioContainer);
+        } else if (type === 'pdf') {
+            pdfControls.style.display = 'flex';
+            defaultActions.style.display = 'none';
+            
+            content.innerHTML = '';
+            const pdfContainer = document.createElement('div');
+            pdfContainer.className = 'pdf-container';
+            pdfContainer.appendChild(canvas);
+            content.appendChild(pdfContainer);
+
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            
+            const loadingTask = pdfjsLib.getDocument(url);
+            loadingTask.promise.then(function(pdf) {
+                pdfDoc = pdf;
+                pageNum = Math.min(Math.max(1, pageNum), pdf.numPages);
+                document.getElementById('pageInfo').textContent = `Seite ${pageNum} / ${pdf.numPages}`;
+                renderPage(pageNum);
+            }).catch(function(reason) {
+                content.innerHTML = `<div class="error-msg">Fehler beim Laden der PDF: ${reason}</div>`;
+            });
+
+            document.getElementById('prevBtn').addEventListener('click', onPrevPage);
+            document.getElementById('nextBtn').addEventListener('click', onNextPage);
+            document.getElementById('closeBtn').addEventListener('click', function() { window.close(); });
+            document.getElementById('prevMatchBtn').addEventListener('click', onPrevMatch);
+            document.getElementById('nextMatchBtn').addEventListener('click', onNextMatch);
+            
+            // Initialize search after PDF is loaded
+            initializeSearch();
+        } else if (type === 'text') {
+            // Textdateien: Lade sie und zeige sie an
+            const textContainer = document.createElement('pre');
+            textContainer.style.cssText = 'width: 100%; height: 100%; padding: 20px; overflow: auto; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 14px; line-height: 1.6; color: #f0f0f0; background: #1e1e1e;';
+            fetch(url)
+                .then(response => response.text())
+                .then(text => {
+                    textContainer.textContent = text;
+                    content.appendChild(textContainer);
+                    applyProtection(textContainer);
+                })
+                .catch(error => {
+                    content.innerHTML = `<div class="error-msg">Fehler beim Laden der Textdatei: ${error}</div>`;
+                });
+        } else {
+            content.innerHTML = `<div class="error-msg">Dateityp wird nicht unterstützt.</div>`;
+        }
+
+        // Deaktiviere Tastenkombinationen zum Speichern/Drucken
+        window.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'p')) {
+                e.preventDefault();
+            }
+            if (type === 'video' && e.key === 'Escape') {
+                const fullscreenElement =
+                    document.fullscreenElement ||
+                    document.webkitFullscreenElement ||
+                    document.msFullscreenElement;
+                const activeVideoContainer =
+                    document.querySelector('.viewer-video-container.custom-fullscreen') ||
+                    (fullscreenElement && fullscreenElement.classList && fullscreenElement.classList.contains('viewer-video-container')
+                        ? fullscreenElement
+                        : null);
+                if (activeVideoContainer) {
+                    activeVideoContainer.classList.remove('custom-fullscreen');
+                    if (document.fullscreenElement && document.exitFullscreen) {
+                        document.exitFullscreen().catch(() => {});
+                    }
+                    document.documentElement.classList.remove('video-page-fullscreen');
+                    document.body.classList.remove('video-page-fullscreen');
+                    const fullscreenButton = activeVideoContainer.querySelector('button[title="Vollbild beenden"]');
+                    const hint = activeVideoContainer.querySelector('.viewer-fullscreen-hint');
+                    if (fullscreenButton) {
+                        fullscreenButton.innerHTML = '<i class="fas fa-expand"></i>';
+                        fullscreenButton.title = 'Vollbild';
+                    }
+                    if (hint) {
+                        hint.classList.remove('visible');
+                    }
+                    e.preventDefault();
+                }
+            }
+            if (type === 'pdf') {
+                if (e.key === 'ArrowLeft') {
+                    onPrevPage();
+                    e.preventDefault();
+                }
+                if (e.key === 'ArrowRight') {
+                    onNextPage();
+                    e.preventDefault();
+                }
+            }
+        });
+
+        // Apply protection to content
+        applyProtection(content);
+    </script>
+</body>
+</html>

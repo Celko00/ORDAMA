@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=ORDAMA
+Comment=Enterprise Aktenverwaltung
+Exec=TEMP_EXEC
+Icon=TEMP_ICON
+Terminal=false
+Type=Application
+Categories=Office;Utility;
+Keywords=Akten;Management;ORDAMA;
+StartupNotify=true
