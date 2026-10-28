@@ -1,12 +1,12 @@
 {
-  "2": {
-    "username": "Marcel",
-    "logged_in": true,
-    "timestamp": "2026-10-03T01:15:44.817236"
-  },
   "1": {
     "username": "admin",
     "logged_in": true,
     "timestamp": "2026-10-26T17:33:25.429795"
+  },
+  "22": {
+    "username": "Marcel",
+    "logged_in": true,
+    "timestamp": "2026-10-26T21:39:25.666678"
   }
 }

@@ -1,0 +1,63 @@
+{
+    "id": 3,
+    "name": "tesst",
+    "structure": {
+        "elements": [
+            {
+                "bold": false,
+                "checked": true,
+                "content": "",
+                "fontFamily": "inherit",
+                "fontSize": "14px",
+                "hasUnderline": false,
+                "height": 24,
+                "id": "feld_1780832337542",
+                "italic": false,
+                "length": 150,
+                "type": "checkbox",
+                "underlineWidth": "100%",
+                "width": 24,
+                "x": 50,
+                "y": 50
+            },
+            {
+                "bold": false,
+                "checked": false,
+                "content": "",
+                "fontFamily": "inherit",
+                "fontSize": "14px",
+                "hasUnderline": false,
+                "height": 60,
+                "id": "feld_1780832347311",
+                "italic": false,
+                "length": 150,
+                "type": "signature",
+                "underlineWidth": "100%",
+                "width": 200,
+                "x": 560,
+                "y": 410
+            },
+            {
+                "type": "checkbox",
+                "x": 140,
+                "y": 110,
+                "content": "",
+                "fontSize": "14px",
+                "fontFamily": "inherit",
+                "bold": false,
+                "italic": false,
+                "width": 24,
+                "height": 24,
+                "length": 150,
+                "id": "feld_1780832440156",
+                "hasUnderline": false,
+                "underlineWidth": "100%",
+                "checked": true
+            }
+        ],
+        "height": 1131,
+        "next_number": 1,
+        "width": 800
+    },
+    "next_number": 1
+}

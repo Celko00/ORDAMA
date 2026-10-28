@@ -1,0 +1,36 @@
+{
+    "id": 4,
+    "name": "tesst2",
+    "structure": {
+        "elements": [
+            {
+                "bold": false,
+                "content": "bild_0.png",
+                "fontFamily": "inherit",
+                "fontSize": "14px",
+                "height": 580,
+                "italic": false,
+                "length": 150,
+                "type": "image",
+                "width": 690,
+                "x": 50,
+                "y": 50
+            },
+            {
+                "type": "text",
+                "x": 480,
+                "y": 220,
+                "content": "Neuer Text",
+                "fontSize": "14px",
+                "fontFamily": "inherit",
+                "bold": false,
+                "italic": false,
+                "width": 200,
+                "height": 30,
+                "length": 150
+            }
+        ],
+        "height": 1131,
+        "width": 800
+    }
+}

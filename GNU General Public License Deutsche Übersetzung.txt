@@ -1,8 +1,12 @@
 GNU General Public License
 
+
 Deutsche Übersetzung der Version 3, 29. Juni 2007  von Peter Gerwinski, 5.7.2007
 
-Den offiziellen englischen Originaltext finden Sie unter http://www.gnu.org/licenses/gpl.html.
+Den offiziellen englischen Originaltext finden Sie unter https://www.gnu.org/licenses/gpl-3.0.html
+
+ORDAMA - Dokumentenmanagement-System
+Copyright (C) 2026 Marcel Kohl
 
 Dies ist eine inoffizielle deutsche Übersetzung der GNU General Public License, die nicht von der Free Software Foundation herausgegeben wurde. Es handelt sich hierbei nicht um eine rechtsgültige Festlegung der Bedingungen für die Weitergabe von Software, die der GNU GPL unterliegt; dies leistet nur der englische Originaltext. Wir hoffen jedoch, daß diese Übersetzung deutschsprachigen Lesern helfen wird, die GNU GPL besser zu verstehen.
 
@@ -213,5 +217,4 @@ Dieses Programm ist freie Software. Sie können es unter den Bedingungen der GNU
 
 Die Veröffentlichung dieses Programms erfolgt in der Hoffnung, daß es Ihnen von Nutzen sein wird, aber OHNE IRGENDEINE GARANTIE, sogar ohne die implizite Garantie der MARKTREIFE oder der VERWENDBARKEIT FÜR EINEN BESTIMMTEN ZWECK. Details finden Sie in der GNU General Public License.
 
-Copyright (C) 2023 Marcel Kohl
 
