@@ -64,6 +64,7 @@ class SchemaManager:
             self._create_chat_messages_table(cursor)
             self._create_private_messages_table(cursor)
             self._create_archive_metadata_table(cursor)
+            self._create_redacted_sections_table(cursor)
             
             self._add_missing_columns(cursor)
             self._run_migrations(cursor)
@@ -103,6 +104,7 @@ class SchemaManager:
                 can_view_calendar INTEGER DEFAULT 1,
                 can_view_assistant INTEGER DEFAULT 1,
                 can_view_archive INTEGER DEFAULT 1,
+                can_view_redacted INTEGER DEFAULT 0,
                 signature TEXT,
                 active INTEGER DEFAULT 1,
                 logged_in INTEGER DEFAULT 0,
@@ -131,6 +133,7 @@ class SchemaManager:
             ('can_view_calendar', 'INTEGER DEFAULT 1'),
             ('can_view_assistant', 'INTEGER DEFAULT 1'),
             ('can_view_archive', 'INTEGER DEFAULT 1'),
+            ('can_view_redacted', 'INTEGER DEFAULT 0'),
             ('is_online', 'INTEGER DEFAULT 0'),
             ('logged_in', 'INTEGER DEFAULT 0'),
         ]
@@ -512,6 +515,21 @@ class SchemaManager:
                 UNIQUE(record_id)
             )
         ''')
+
+    def _create_redacted_sections_table(self, cursor):
+        """Erstellt die Tabelle für geschwärzte Textstellen"""
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS redacted_sections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                record_id INTEGER NOT NULL,
+                field_name TEXT NOT NULL,
+                redacted_text TEXT NOT NULL,
+                created_by INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        ''')
     
     def _add_missing_columns(self, cursor):
         """Fügt fehlende Spalten zu bestehenden Tabellen hinzu"""
@@ -675,6 +693,36 @@ class SchemaManager:
                 logger.info("Migration reminders.created_by abgeschlossen")
         except Exception as e:
             logger.warning(f"Migration reminders.created_by fehlgeschlagen: {e}")
+        
+        # Migration: redacted_sections von start_pos/end_pos zu redacted_text ändern
+        try:
+            cursor.execute("PRAGMA table_info(redacted_sections)")
+            columns = cursor.fetchall()
+            column_names = [col[1] for col in columns]
+            if 'start_pos' in column_names and 'redacted_text' not in column_names:
+                logger.info("Migriere redacted_sections zu redacted_text")
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS redacted_sections_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        record_id INTEGER NOT NULL,
+                        field_name TEXT NOT NULL,
+                        redacted_text TEXT NOT NULL,
+                        created_by INTEGER NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
+                        FOREIGN KEY (created_by) REFERENCES users(id)
+                    )
+                ''')
+                # Alte Daten migrieren - da wir die geschwärzten Zeichen nicht mehr haben, leeren wir die Tabelle
+                cursor.execute('''
+                    INSERT INTO redacted_sections_new (id, record_id, field_name, redacted_text, created_by, created_at)
+                    SELECT id, record_id, field_name, '', created_by, created_at FROM redacted_sections
+                ''')
+                cursor.execute('DROP TABLE redacted_sections')
+                cursor.execute('ALTER TABLE redacted_sections_new RENAME TO redacted_sections')
+                logger.info("Migration redacted_sections zu redacted_text abgeschlossen")
+        except Exception as e:
+            logger.warning(f"Migration redacted_sections fehlgeschlagen: {e}")
         
         # Migration: attachments.uploaded_by zu NULLABLE ändern
         try:

@@ -96,9 +96,9 @@ class AktenManager:
         """Liefert OCR-Treffer gruppiert nach Akte inklusive Dateiname und Textauszug"""
         return self.search_logic.get_ocr_match_details(parsed_search)
         
-    def check_for_duplicates(self, title, content, address, user_id, hashtags=None, min_similarity=None):
+    def check_for_duplicates(self, title, content, address, user_id, hashtags=None, min_similarity=None, exclude_id=None):
         """Prüft auf ähnliche Akten (Dubletten) basierend auf Titel und Textinhalten (Inhalt/Adresse/Hashtags)"""
-        return self.duplicate_detector.check_for_duplicates(title, content, address, user_id, hashtags, min_similarity)
+        return self.duplicate_detector.check_for_duplicates(title, content, address, user_id, hashtags, min_similarity, exclude_id)
     
     def check_plz_valid(self, address):
         """
@@ -311,19 +311,23 @@ class AktenManager:
             )
             rows = cursor.fetchall()
 
-            if len(rows) != len(eindeutige_ids):
-                raise ValueError("Eine oder mehrere Akten wurden nicht gefunden")
+            # Nur existierende Akten löschen - nicht gefundene IDs ignorieren
+            gefundene_ids = {row['id'] for row in rows}
 
             aktenzeichen_liste = [row['number'] for row in rows]
 
+            # Nur die gefundenen IDs löschen
+            gefundene_ids_liste = list(gefundene_ids)
+            platzhalter_gefunden = ','.join(['?'] * len(gefundene_ids_liste))
+
             # Abhängige Datensätze löschen
-            cursor.execute(f"DELETE FROM reminders WHERE record_id IN ({platzhalter})", eindeutige_ids)
-            cursor.execute(f"DELETE FROM attachments WHERE record_id IN ({platzhalter})", eindeutige_ids)
-            cursor.execute(f"DELETE FROM record_locks WHERE record_id IN ({platzhalter})", eindeutige_ids)
-            cursor.execute(f"DELETE FROM record_koordinaten WHERE record_id IN ({platzhalter})", eindeutige_ids)
+            cursor.execute(f"DELETE FROM reminders WHERE record_id IN ({platzhalter_gefunden})", gefundene_ids_liste)
+            cursor.execute(f"DELETE FROM attachments WHERE record_id IN ({platzhalter_gefunden})", gefundene_ids_liste)
+            cursor.execute(f"DELETE FROM record_locks WHERE record_id IN ({platzhalter_gefunden})", gefundene_ids_liste)
+            cursor.execute(f"DELETE FROM record_koordinaten WHERE record_id IN ({platzhalter_gefunden})", gefundene_ids_liste)
 
             # Akten selbst löschen
-            cursor.execute(f"DELETE FROM records WHERE id IN ({platzhalter})", eindeutige_ids)
+            cursor.execute(f"DELETE FROM records WHERE id IN ({platzhalter_gefunden})", gefundene_ids_liste)
 
             # Nummern aus used_numbers entfernen, damit sie wiederverwendet werden können
             platzhalter_nummern = ','.join(['?'] * len(aktenzeichen_liste))
@@ -1023,6 +1027,21 @@ class AktenManager:
 
                 record_dict['locked'] = record['locked_by'] is not None
                 record_dict = self._apply_reminder_visibility(record_dict, viewer_user_id, is_admin)
+
+                # Geschwärzte Stellen laden
+                cursor.execute('''
+                    SELECT field_name, redacted_text
+                    FROM redacted_sections
+                    WHERE record_id = ? AND field_name = 'content'
+                ''', (record['id'],))
+                redacted_sections = []
+                for row in cursor.fetchall():
+                    redacted_sections.append({
+                        'field_name': row['field_name'],
+                        'redacted_text': row['redacted_text']
+                    })
+                record_dict['redacted_sections'] = redacted_sections
+
                 result.append(record_dict)
 
             if search and search_type in ['attachments', 'ocr']:
@@ -2078,6 +2097,21 @@ class AktenManager:
                 record_dict['attachments'] = self.get_attachments(row['id'])
                 record_dict['locked'] = row['locked_by'] is not None
                 record_dict = self._apply_reminder_visibility(record_dict, viewer_user_id, is_admin)
+
+                # Geschwärzte Stellen laden
+                cursor.execute('''
+                    SELECT field_name, redacted_text
+                    FROM redacted_sections
+                    WHERE record_id = ? AND field_name = 'content'
+                ''', (row['id'],))
+                redacted_sections = []
+                for red_row in cursor.fetchall():
+                    redacted_sections.append({
+                        'field_name': red_row['field_name'],
+                        'redacted_text': red_row['redacted_text']
+                    })
+                record_dict['redacted_sections'] = redacted_sections
+
                 records.append(record_dict)
 
             # Gesamtzahl ermitteln

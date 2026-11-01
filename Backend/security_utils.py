@@ -121,6 +121,43 @@ class InputSanitizer:
         return re.sub(r'<[^>]+>', '', text)
     
     @staticmethod
+    def sanitize_html_content(text):
+        """Sanitisiert HTML-Content für Akten - erlaubt sichere Tags wie Checkboxen, entfernt gefährliche Elemente"""
+        if not text:
+            return text
+        
+        # Erlaubte Tags für Akten-Content (inklusive Checkboxen)
+        # Erlaubt: input (nur checkbox), div, span, p, br, strong, em, u, a, ul, ol, li
+        allowed_tags = {
+            'input', 'div', 'span', 'p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li'
+        }
+        
+        # Gefährliche Tags und Attribute entfernen
+        dangerous_tags = ['script', 'style', 'iframe', 'object', 'embed', 'form', 'button', 'select', 'textarea']
+        dangerous_attrs = ['onload', 'onerror', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur', 'onkey', 'onsubmit', 'onreset', 'onchange']
+        
+        # HTML parsen und gefährliche Elemente entfernen
+        import re
+        
+        # Gefährliche Tags komplett entfernen
+        for tag in dangerous_tags:
+            text = re.sub(rf'<{tag}[^>]*>.*?</{tag}>', '', text, flags=re.IGNORECASE | re.DOTALL)
+            text = re.sub(rf'<{tag}[^>]*/?>', '', text, flags=re.IGNORECASE)
+        
+        # Gefährliche Attribute entfernen
+        for attr in dangerous_attrs:
+            text = re.sub(rf'\s{attr}\s*=\s*["\'][^"\']*["\']', '', text, flags=re.IGNORECASE)
+            text = re.sub(rf'\s{attr}\s*=\s*[^\s>]', '', text, flags=re.IGNORECASE)
+        
+        # javascript: Protokolle entfernen
+        text = re.sub(r'javascript:', '', text, flags=re.IGNORECASE)
+        
+        # Nur input type="checkbox" erlauben, andere input-Tags entfernen
+        text = re.sub(r'<input(?![^>]*type=["\']checkbox["\'])[^>]*/?>', '', text, flags=re.IGNORECASE)
+        
+        return text
+    
+    @staticmethod
     def sanitize_filename(filename):
         """Sanitisiert Dateinamen gegen Path Traversal"""
         if not filename:

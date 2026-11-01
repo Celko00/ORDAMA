@@ -5,7 +5,7 @@
         "allow_external": true,
         "auto_restart": false,
         "name": "ORDAMA",
-        "plz_validation_enabled": false
+        "plz_validation_enabled": true
     },
     "database": {
         "name": "ordama.db"

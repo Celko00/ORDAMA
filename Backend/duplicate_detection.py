@@ -31,7 +31,7 @@ class DuplicateDetector:
     def __init__(self, db_manager):
         self.db_manager = db_manager
     
-    def check_for_duplicates(self, title, content, address, user_id, hashtags=None, min_similarity=None):
+    def check_for_duplicates(self, title, content, address, user_id, hashtags=None, min_similarity=None, exclude_id=None):
         """Prüft auf ähnliche Akten (Dubletten) basierend auf Titel und Textinhalten (Inhalt/Adresse/Hashtags)"""
         try:
             # Schwellenwert aus Settings laden oder Standardwert 0.3 verwenden (erhöht für bessere Erkennung)
@@ -107,6 +107,10 @@ class DuplicateDetector:
             
             for record in candidate_records:
                 if not record.get('id'):
+                    continue
+                
+                # exclude_id: Diese Akte aus den Ergebnissen ausschließen (z.B. Draft-Akte)
+                if exclude_id and record['id'] == exclude_id:
                     continue
                 
                 # Ähnlichkeit basierend auf Titel, Inhalt und OCR-Daten

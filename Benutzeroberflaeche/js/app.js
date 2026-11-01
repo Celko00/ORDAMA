@@ -25,6 +25,7 @@ const App = {
     records: [],
     categories: [],
     editingId: null,
+    isDraft: false, // Flag für Draft-Akten (beim Erstellen sofort erstellt)
     searchType: 'all',
     calendarDate: new Date(),
     lockCheckInterval: null,
@@ -1368,6 +1369,53 @@ async login(ev) {
         return this.currentUser?.role === 'admin' || !!this.currentUser?.[permission];
     },
 
+    applyRedactionToText(text, redactedSections, useHtml = false) {
+        // Wendet Schwärzung auf Text an basierend auf geschwärzten Zeichen
+        // useHtml: true für Editor (mit HTML-Tags), false für Vorschau
+        if (!redactedSections || !redactedSections.length) {
+            return text;
+        }
+
+        const canViewRedacted = this.currentUser?.role === 'admin' || this.currentUser?.can_view_redacted;
+        let result = text || '';
+
+        if (canViewRedacted) {
+            // Berechtigt: Text mit schwarzem Hintergrund und hellen Buchstaben anzeigen
+            redactedSections.forEach(section => {
+                if (section.field_name === 'content' && section.redacted_text) {
+                    const redactedText = section.redacted_text;
+                    const escapedRedactedText = this.escapeRegex(redactedText);
+                    const regex = new RegExp(escapedRedactedText, 'g');
+                    if (useHtml) {
+                        // Editor: Mit Klick-Handler zum Aufheben
+                        result = result.replace(regex, `<span class="redacted-marked" style="background-color: #000; color: #fff; padding: 2px 4px; border-radius: 2px; cursor: pointer;" data-redaction-id="${section.id}">${redactedText}</span>`);
+                    } else {
+                        // Vorschau: Ohne Klick-Handler
+                        result = result.replace(regex, `<span style="background-color: #000; color: #fff; padding: 2px 4px; border-radius: 2px;">${redactedText}</span>`);
+                    }
+                }
+            });
+        } else {
+            // Nicht berechtigt: Schwarze Blöcke
+            redactedSections.forEach(section => {
+                if (section.field_name === 'content' && section.redacted_text) {
+                    const redactedText = section.redacted_text;
+                    const escapedRedactedText = this.escapeRegex(redactedText);
+                    const regex = new RegExp(escapedRedactedText, 'g');
+                    const redactedBlock = '█'.repeat(redactedText.length);
+                    result = result.replace(regex, redactedBlock);
+                }
+            });
+        }
+
+        return result;
+    },
+
+    escapeRegex(string) {
+        // Escapes special regex characters
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    },
+
     getSectionPermission(sectionName) {
         const permissionMap = {
             dashboard: 'can_view_stats',
@@ -1411,6 +1459,13 @@ async login(ev) {
             const has = this.currentUser?.role === 'admin' || this.currentUser?.[perm];
             el.classList.toggle('hidden', !has);
         });
+
+        // Schwärzungs-Button nur für berechtigte Benutzer anzeigen
+        const redactBtn = document.querySelector('.redact-btn');
+        if (redactBtn) {
+            const canRedact = this.currentUser?.role === 'admin' || this.currentUser?.can_view_redacted;
+            redactBtn.style.display = canRedact ? '' : 'none';
+        }
 
         // Add console to sidebar displays if admin
         if (this.currentUser?.role === 'admin' && !this.sidebarDisplays.includes('console')) {
@@ -3215,7 +3270,18 @@ async login(ev) {
         const hashtags = r.hashtags ? r.hashtags.split(/\s+/).filter(Boolean).map(h =>
             `<span class="hashtag">${this.escapeHtml(h)}</span>`
         ).join('') : '';
-        const excerpt = this.stripHtml(r.content || '').substring(0, 120);
+
+        // HTML-Formatierung für Vorschau beibehalten (Leerzeilen, Absätze)
+        let excerpt = '';
+        const canViewRedacted = this.currentUser?.role === 'admin' || this.currentUser?.can_view_redacted;
+
+        // HTML beibehalten für korrekte Formatierung in der Vorschau
+        excerpt = r.content || '';
+
+        if (r.redacted_sections && r.redacted_sections.length > 0) {
+            // Schwärzung auf HTML anwenden
+            excerpt = this.applyRedactionToText(excerpt, r.redacted_sections, false);
+        }
         const searchMatches = hasSearchMatches
             ? `<div class="record-search-matches" style="margin-top:6px;padding:0;">
                 <div style="display:flex;flex-direction:column;gap:6px;">
@@ -3322,7 +3388,7 @@ async login(ev) {
         // Wenn es Suchtreffer gibt, blende normalen Inhalt aus, aber behalte Kategorie, Hashtags und Reminder!
         const normalContent = !hasSearchMatches ? `
             ${address}
-            <div class="record-excerpt">${this.linkifyUrls(this.escapeHtml(excerpt))}</div>
+            <div class="record-excerpt">${this.linkifyUrls(excerpt)}</div>
             <div class="record-meta">
                 <div class="meta-row">
                     <span class="meta-author"><i class="fas fa-user" style="margin-right:4px;opacity:0.6"></i>${this.escapeHtml(author)}</span>
@@ -3694,6 +3760,7 @@ async login(ev) {
             this.toast('Keine Schreibberechtigung', 'error'); return;
         }
         this.editingId = null;
+        this.isDraft = false;
         this.currentLock = null;
         this.clearModal();
         document.getElementById('modalTitle').textContent = 'Neue Akte';
@@ -3718,8 +3785,58 @@ async login(ev) {
         // Datei-Upload-Verfügbarkeit basierend auf Server-Status prüfen
         this.updateFileUploadAvailability();
         
+        // Anhänge-Bereich initialisieren (leer)
+        this.renderAttachments([]);
+        
         this.showModal('recordModal');
         this.hasChanges = false;
+    },
+
+    async ensureDraftExists() {
+        // Erstellt eine Draft-Akte wenn noch keine editingId existiert
+        if (this.editingId) {
+            return true; // Bereits eine Akte geöffnet
+        }
+
+        try {
+            const draftBody = {
+                title: 'Neue Akte (Entwurf)',
+                content: '',
+                hashtags: '',
+                status: 'neutral', // neutral als Draft-Status nutzen
+                border_color: '',
+                category_id: null,
+                reminder_date: null,
+                reminder_end_date: null,
+                reminder_repeat: null,
+                reminder_assigned_to: null,
+                address: '',
+                force_create: true // Dublettenprüfung überspringen für Draft-Akte
+            };
+
+            const result = await this.apiPost('/records', draftBody, false);
+            if (result.record) {
+                this.editingId = result.record.id;
+                this.isDraft = true; // Markieren als Draft
+                console.log('Draft-Akte erstellt:', this.editingId, 'isDraft:', this.isDraft);
+                
+                // Lock setzen
+                try {
+                    await this.apiPost(`/records/${this.editingId}/lock`, null, false);
+                    this.currentLock = this.editingId;
+                    this.startLockCheck(this.editingId);
+                } catch (e) {
+                    console.log('Lock konnte nicht gesetzt werden:', e);
+                }
+                
+                return true;
+            }
+        } catch (e) {
+            console.error('Fehler beim Erstellen der Draft-Akte:', e);
+            this.toast('Fehler beim Erstellen der Akte', 'error');
+            return false;
+        }
+        return false;
     },
 
     async openRecord(id) {
@@ -3791,6 +3908,7 @@ async login(ev) {
                 // Offline-Akte direkt aus lokaler Liste laden
                 data = recordToUse;
                 this.editingId = id;
+                this.isDraft = false; // Keine Draft-Akte
                 this.currentLock = null;
                 // Speichere is_offline Information im data Objekt
                 data.is_offline = true;
@@ -3799,6 +3917,7 @@ async login(ev) {
                 try {
                     data = await this.apiGet(`/records/${id}`, false);
                     this.editingId = id;
+                    this.isDraft = false; // Keine Draft-Akte
                     // Speichere is_offline Information im data Objekt
                     data.is_offline = false;
                 } catch (e) {
@@ -3810,6 +3929,7 @@ async login(ev) {
                         data = offlineRecord;
                         isOffline = true;
                         this.editingId = id;
+                        this.isDraft = false; // Keine Draft-Akte
                         this.currentLock = null;
                         // Speichere is_offline Information im data Objekt
                         data.is_offline = true;
@@ -3843,7 +3963,50 @@ async login(ev) {
             document.getElementById('recordNumber').value = data.number;
             document.getElementById('recordTitle').value = data.title;
             document.getElementById('recordAddress').value = data.address || '';
-            document.getElementById('recordContent').innerHTML = this.linkifyUrls(data.content || '');
+
+            // Geschwärzte Textstellen laden und anwenden
+            let content = data.content || '';
+            const canViewRedacted = this.currentUser?.role === 'admin' || this.currentUser?.can_view_redacted;
+
+            // Geschwärzte Stellen laden (für alle Benutzer)
+            try {
+                const redactedData = await this.apiGet(`/records/${data.id}/redacted`, false);
+                if (redactedData.sections && redactedData.sections.length > 0) {
+                    data.redacted_sections = redactedData.sections; // Speichern für Vorschau
+
+                    // HTML-Tags für Positionsberechnung entfernen
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = content;
+                    const plainText = tempDiv.textContent;
+
+                    if (canViewRedacted) {
+                        // Berechtigte: Text mit schwarzem Hintergrund markieren
+                        redactedData.sections.forEach(section => {
+                            if (section.field_name === 'content' && section.redacted_text) {
+                                const redactedText = section.redacted_text;
+                                const escapedRedactedText = this.escapeRegex(redactedText);
+                                const regex = new RegExp(escapedRedactedText, 'g');
+                                content = content.replace(regex, `<span class="redacted-marked" style="background-color: #000; color: #fff; padding: 2px 4px; border-radius: 2px; cursor: pointer;" data-redaction-id="${section.id}">${redactedText}</span>`);
+                            }
+                        });
+                    } else {
+                        // Nicht berechtigte: Schwarze Blöcke
+                        redactedData.sections.forEach(section => {
+                            if (section.field_name === 'content' && section.redacted_text) {
+                                const redactedText = section.redacted_text;
+                                const escapedRedactedText = this.escapeRegex(redactedText);
+                                const regex = new RegExp(escapedRedactedText, 'g');
+                                const redactedBlock = '█'.repeat(redactedText.length);
+                                content = content.replace(regex, redactedBlock);
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Fehler beim Laden geschwärzter Stellen:', e);
+            }
+
+            document.getElementById('recordContent').innerHTML = this.linkifyUrls(content);
             document.getElementById('recordHashtags').value = data.hashtags || '';
             document.getElementById('recordStatus').value = data.status || 'neutral';
             document.getElementById('recordBorderColor').value = data.border_color || '';
@@ -3853,8 +4016,47 @@ async login(ev) {
             const contentElement = document.getElementById('recordContent');
             const checkboxes = contentElement.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(checkbox => {
-                checkbox.checked = checkbox.hasAttribute('checked');
+                // WICHTIG: Zuerst checked Attribut prüfen, dann data-checked als Fallback
+                const isChecked = checkbox.hasAttribute('checked') || checkbox.getAttribute('data-checked') === 'true';
+                checkbox.checked = isChecked;
+                // data-checked Attribut für Konsistenz aktualisieren
+                checkbox.setAttribute('data-checked', isChecked ? 'true' : 'false');
+                checkbox.style.verticalAlign = 'middle';
+                checkbox.style.margin = '0 4px';
+                checkbox.style.position = 'relative';
+                checkbox.style.top = '-1px';
             });
+
+            // Event-Delegation für Klicks auf geschwärzte Stellen und Checkboxen
+            contentElement.onclick = (e) => {
+                // Checkbox-Klicks normal durchlassen
+                if (e.target.tagName === 'INPUT' && e.target.type === 'checkbox') {
+                    return;
+                }
+
+                const redactedSpan = e.target.closest('.redacted-marked');
+                if (redactedSpan) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Prüfen ob bereits markiert
+                    if (redactedSpan.classList.contains('redacted-selected')) {
+                        // Bereits markiert - Schwärzung aufheben
+                        const redactionId = redactedSpan.getAttribute('data-redaction-id');
+                        if (redactionId) {
+                            this.unredactOnClick(parseInt(redactionId));
+                        }
+                    } else {
+                        // Markierung hinzufügen
+                        // Zuerst alle anderen Markierungen entfernen
+                        contentElement.querySelectorAll('.redacted-marked').forEach(span => {
+                            span.classList.remove('redacted-selected');
+                        });
+                        // Diese markieren
+                        redactedSpan.classList.add('redacted-selected');
+                    }
+                }
+            };
 
             // Custom Dropdowns UI aktualisieren
             this.updateModalDropdownUI('modalStatusDropdown', data.status || 'neutral');
@@ -4404,6 +4606,7 @@ async login(ev) {
     },
 
     async saveRecord(ev) {
+        console.log('🔍 saveRecord aufgerufen');
         ev.preventDefault();
         if (!this.currentUser?.can_write && this.currentUser?.role !== 'admin') {
             this.toast('Keine Schreibberechtigung', 'error'); return;
@@ -4411,6 +4614,7 @@ async login(ev) {
         
         // Check if form is disabled (locked by other user)
         const titleField = document.getElementById('recordTitle');
+        console.log('🔍 Prüfe Lock, titleField:', titleField, 'disabled:', titleField?.disabled);
         if (titleField && titleField.disabled) {
             this.toast('Akte ist gesperrt und kann nicht bearbeitet werden', 'error'); return;
         }
@@ -4535,10 +4739,11 @@ async login(ev) {
             }
         }
         
-        // Checkbox-Zustände persistent machen
+        // Checkbox-Zustände persistent machen - data-checked Attribut setzen
         const contentElement = document.getElementById('recordContent');
         const checkboxes = contentElement.querySelectorAll('input[type="checkbox"]');
         checkboxes.forEach(checkbox => {
+            checkbox.setAttribute('data-checked', checkbox.checked ? 'true' : 'false');
             if (checkbox.checked) {
                 checkbox.setAttribute('checked', 'checked');
             } else {
@@ -4549,7 +4754,7 @@ async login(ev) {
         const body = {
             title: document.getElementById('recordTitle').value.trim(),
             address: document.getElementById('recordAddress').value.trim(),
-            content: this.sanitizeHtml(contentElement.innerHTML),
+            content: this.sanitizeHtml(this.stripRedactionSpans(contentElement.innerHTML)),
             hashtags: document.getElementById('recordHashtags').value,
             status: document.getElementById('recordStatus').value,
             border_color: document.getElementById('recordBorderColor').value,
@@ -4559,10 +4764,12 @@ async login(ev) {
             reminder_repeat: reminderRepeat,
             reminder_assigned_to: document.getElementById('recordReminderVisibility').value === 'private' ? this.currentUser.id : null
         };
+        console.log('🔍 Body erstellt, Titel:', body.title, 'Content Länge:', body.content.length);
         if (!body.title) { this.toast('Titel ist erforderlich', 'error'); return; }
 
         // Mehrfachklicks verhindern
         const submitBtn = document.getElementById('submitRecordBtn');
+        console.log('🔍 Prüfe submitBtn:', submitBtn, 'disabled:', submitBtn?.disabled);
         if (submitBtn && submitBtn.disabled) {
             console.log('⚠️ Speichern bereits in Bearbeitung');
             return;
@@ -4574,7 +4781,8 @@ async login(ev) {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Speichere...';
         }
-        
+        console.log('🔍 Button deaktiviert');
+
         // Speichern-Overlay anzeigen für sofortiges Feedback
         const savingOverlay = document.getElementById('savingOverlay');
         if (savingOverlay) {
@@ -4585,6 +4793,7 @@ async login(ev) {
                 savingText.textContent = 'Prüfe Verbindung...';
             }
         }
+        console.log('🔍 Overlay angezeigt, editingId:', this.editingId);
 
         try {
             if (this.editingId) {
@@ -4709,6 +4918,236 @@ async login(ev) {
                         return;
                     }
                     
+                    // Dublettenprüfung für Draft-Akten und Updates (z.B. nach Textschwärzung)
+                    // Nur ausführen, wenn es eine Draft-Akte ist oder der Titel geändert wurde
+                    let shouldCheckDuplicates = false;
+                    if (this.isDraft) {
+                        // Draft-Akte: Immer prüfen
+                        shouldCheckDuplicates = true;
+                    } else {
+                        // Existierende Akte: Nur prüfen, wenn Titel geändert wurde
+                        const currentRecord = this.records.find(r => r.id === this.editingId);
+                        if (currentRecord && currentRecord.title !== body.title) {
+                            shouldCheckDuplicates = true;
+                        }
+                    }
+
+                    if (shouldCheckDuplicates) {
+                        console.log('🔍 Akte wird aktualisiert - führe Dublettenprüfung durch, isDraft:', this.isDraft);
+                        const cleanContent = this.stripRedactionSpans(body.content).replace(/<input[^>]*type=["']checkbox["'][^>]*>/gi, '');
+
+                        const duplicateCheck = await this.apiPost('/records/check-duplicates', {
+                            title: body.title,
+                            content: cleanContent,
+                            address: body.address,
+                            hashtags: body.hashtags,
+                            exclude_id: this.editingId
+                        }, false);
+
+                        console.log('🔍 Dublettenprüfung Ergebnis:', duplicateCheck);
+
+                        if (duplicateCheck.duplicate_check && duplicateCheck.duplicate_check.duplicates && duplicateCheck.duplicate_check.duplicates.length > 0) {
+                            // Dubletten gefunden
+                            console.log('🔍 Dubletten gefunden:', duplicateCheck.duplicate_check.duplicates);
+
+                            try {
+                                // Button wiederherstellen vor dem Dialog
+                                if (submitBtn) {
+                                    submitBtn.disabled = false;
+                                    submitBtn.innerHTML = originalBtnText;
+                                }
+                                if (savingOverlay) {
+                                    savingOverlay.style.display = 'none';
+                                }
+
+                                // Merken, ob es eine Draft-Akte ist (VOR dem Löschen!)
+                                const wasDraft = this.isDraft;
+
+                                // Dubletten-Dialog anzeigen
+                                const duplicateDialog = document.createElement('div');
+                                duplicateDialog.className = 'modal-overlay show';
+                                duplicateDialog.style.zIndex = '10000';
+                                duplicateDialog.style.visibility = 'visible';
+                                duplicateDialog.style.opacity = '1';
+
+                                const duplicateItemsHtml = duplicateCheck.duplicate_check.duplicates.map(d => {
+                                    const cleanDupContent = this.stripRedactionSpans(d.content || '').replace(/<input[^>]*type=["']checkbox["'][^>]*>/gi, '').replace(/<[^>]+>/g, '').substring(0, 150);
+                                    return `
+                                    <div class="duplicate-item" data-id="${d.id}">
+                                        <div class="duplicate-title">#${this.escapeHtml(d.number)} - ${this.escapeHtml(d.title)}</div>
+                                        <div class="duplicate-content">${this.escapeHtml(cleanDupContent)}${(d.content || '').length > 150 ? '...' : ''}</div>
+                                        <div class="duplicate-meta">
+                                            <span class="duplicate-date">${d.created_at ? new Date(d.created_at).toLocaleDateString('de-DE') : ''}</span>
+                                        </div>
+                                    </div>
+                                    `;
+                                }).join('');
+
+                                duplicateDialog.innerHTML = `
+                                    <div class="modal" id="duplicateModal" style="max-width: 700px; width: 700px; max-height: 85vh; display: flex; flex-direction: column;">
+                                        <div class="modal-header" style="flex-shrink: 0;">
+                                            <h3>⚠️ Mögliche Dubletten erkannt</h3>
+                                            <div class="modal-header-actions">
+                                                <button class="header-btn" id="duplicateClose" aria-label="Schliessen">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="modal-body" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                                            <p style="flex-shrink: 0;">Eine Akte mit ähnlichem Titel existiert bereits:</p>
+                                            <div class="duplicate-list" style="flex: 1; overflow-y: auto;">
+                                                ${duplicateItemsHtml}
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer" style="flex-shrink: 0;">
+                                            <button class="btn btn-secondary" id="cancelDuplicateBtn">Abbrechen</button>
+                                            <button class="btn btn-primary" id="forceCreateBtn">Trotzdem speichern</button>
+                                        </div>
+                                    </div>
+                                    <style>
+                                        .duplicate-list {
+                                            margin-top: 15px;
+                                        }
+                                        .duplicate-item {
+                                            padding: 12px;
+                                            border: 1px solid #ddd;
+                                            border-radius: 6px;
+                                            margin-bottom: 8px;
+                                            cursor: pointer;
+                                            transition: all 0.2s;
+                                            border-left: 4px solid var(--border-color, #ddd);
+                                        }
+                                        .duplicate-item:hover {
+                                            background-color: #f5f5f5;
+                                            border-color: #007bff;
+                                            border-left-color: #007bff;
+                                        }
+                                        .duplicate-title {
+                                            font-weight: 600;
+                                            margin-bottom: 4px;
+                                            color: #333;
+                                        }
+                                        .duplicate-content {
+                                            font-size: 0.9em;
+                                            color: #666;
+                                            margin-bottom: 4px;
+                                            line-height: 1.4;
+                                        }
+                                        .duplicate-meta {
+                                            display: flex;
+                                            gap: 10px;
+                                            font-size: 0.85rem;
+                                            color: #666;
+                                        }
+                                        .duplicate-list::-webkit-scrollbar {
+                                            width: 8px;
+                                        }
+                                        .duplicate-list::-webkit-scrollbar-track {
+                                            background: transparent;
+                                        }
+                                        .duplicate-list::-webkit-scrollbar-thumb {
+                                            background: #ccc;
+                                            border-radius: 4px;
+                                        }
+                                        .duplicate-list::-webkit-scrollbar-thumb:hover {
+                                            background: #999;
+                                        }
+                                        body.dark-mode .duplicate-list::-webkit-scrollbar-thumb {
+                                            background: #444;
+                                        }
+                                        body.dark-mode .duplicate-list::-webkit-scrollbar-thumb:hover {
+                                            background: #666;
+                                        }
+                                        body.dark-mode .duplicate-title {
+                                            color: #e0e0e0;
+                                        }
+                                        body.dark-mode .duplicate-content {
+                                            color: #b0b0b0;
+                                        }
+                                        body.dark-mode .duplicate-meta {
+                                            color: #b0b0b0;
+                                        }
+                                        body.dark-mode .duplicate-item {
+                                            border-color: #444;
+                                        }
+                                        body.dark-mode .duplicate-item:hover {
+                                            background-color: #333;
+                                            border-color: #007bff;
+                                        }
+                                    </style>
+                                `;
+                                document.body.appendChild(duplicateDialog);
+                                console.log('🔍 Dubletten-Dialog erstellt und angehängt');
+
+                                const userChoice = await new Promise((resolve) => {
+                                    const cancelBtn = duplicateDialog.querySelector('#cancelDuplicateBtn');
+                                    const forceBtn = duplicateDialog.querySelector('#forceCreateBtn');
+                                    const closeBtn = duplicateDialog.querySelector('#duplicateClose');
+                                    const duplicateItems = duplicateDialog.querySelectorAll('.duplicate-item');
+
+                                    cancelBtn.addEventListener('click', () => {
+                                        duplicateDialog.remove();
+                                        resolve('cancel');
+                                    });
+
+                                    forceBtn.addEventListener('click', () => {
+                                        duplicateDialog.remove();
+                                        resolve('force');
+                                    });
+
+                                    closeBtn.addEventListener('click', () => {
+                                        duplicateDialog.remove();
+                                        resolve('cancel');
+                                    });
+
+                                    duplicateItems.forEach(item => {
+                                        item.addEventListener('click', () => {
+                                            duplicateDialog.remove();
+                                            const recordId = parseInt(item.getAttribute('data-id'));
+                                            resolve('switch', recordId);
+                                        });
+                                    });
+                                });
+
+                                console.log('🔍 User choice:', userChoice);
+
+                                if (userChoice === 'cancel') {
+                                    return;
+                                } else if (userChoice === 'switch') {
+                                    await this.loadRecord(userChoice);
+                                    return;
+                                } else if (userChoice === 'force') {
+                                    // Trotzdem speichern
+                                    if (wasDraft) {
+                                        console.log('🔍 Draft-Akte: Wandele in echte Akte um (Titel und Status ändern)');
+                                        // Draft-Akte nicht löschen, sondern in echte Akte umwandeln
+                                        // Das erhält alle geschwärzten Textstellen
+                                        this.isDraft = false;
+
+                                        // Draft-Akte mit echtem Titel und Status aktualisieren
+                                        await this.apiPut(`/records/${this.editingId}`, body);
+                                        console.log('🔍 Draft-Akte in echte Akte umgewandelt');
+                                        this.toast('Akte erstellt', 'success');
+                                        await this.saveRecordDefaults();
+
+                                        // Akten-Liste neu laden, damit die neue Akte sofort sichtbar ist
+                                        await this.loadRecords();
+
+                                        this.closeModal(false, true);
+                                        console.log('🔍 Modal geschlossen, return aus saveRecord');
+                                        return;
+                                    } else {
+                                        // Normale Akte: force_create flag setzen und weitermachen
+                                        body.force_create = true;
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('❌ Fehler im Dubletten-Dialog:', e);
+                                // Bei Fehler weitermachen ohne Dublettenprüfung
+                            }
+                        }
+                    }
+
                     // PLZ-Validierung beim Update
                     const plzCheck = await this.apiPost('/records/check-plz', {
                         address: body.address
@@ -4718,7 +5157,7 @@ async login(ev) {
                     if (plzCheck.warning === 'plz_invalid' && plzCheck.validation_disabled !== true) {
                         // PLZ nicht gefunden - Dialog anzeigen
                         const plzWarning = plzCheck.message;
-                        
+
                         // Button wiederherstellen vor dem Dialog
                         if (submitBtn) {
                             submitBtn.disabled = false;
@@ -4727,14 +5166,14 @@ async login(ev) {
                         if (savingOverlay) {
                             savingOverlay.style.display = 'none';
                         }
-                        
+
                         // Dialog erstellen
                         const plzDialog = document.createElement('div');
                         plzDialog.className = 'modal-overlay show';
                         plzDialog.style.zIndex = '10000';
                         plzDialog.style.visibility = 'visible';
                         plzDialog.style.opacity = '1';
-                        
+
                         plzDialog.innerHTML = `
                             <div class="modal" id="plzModal" style="max-width: 700px; width: 700px;">
                                 <div class="modal-header">
@@ -4757,9 +5196,9 @@ async login(ev) {
                                 </div>
                             </div>
                         `;
-                        
+
                         document.body.appendChild(plzDialog);
-                        
+
                         // Event-Handler für Dialog-Buttons
                         const userChoice = await new Promise((resolve) => {
                             const plzCancel = document.getElementById('plzCancel');
@@ -4767,7 +5206,7 @@ async login(ev) {
                             const plzClose = document.getElementById('plzClose');
                             const plzFullscreen = document.getElementById('plzFullscreen');
                             const plzModal = document.getElementById('plzModal');
-                            
+
                             const cleanup = () => {
                                 plzDialog.remove();
                                 if (submitBtn) {
@@ -4775,22 +5214,22 @@ async login(ev) {
                                     submitBtn.innerHTML = originalBtnText;
                                 }
                             };
-                            
+
                             plzCancel.addEventListener('click', () => {
                                 cleanup();
                                 resolve('cancel');
                             });
-                            
+
                             plzClose.addEventListener('click', () => {
                                 cleanup();
                                 resolve('cancel');
                             });
-                            
+
                             plzForceSave.addEventListener('click', async () => {
                                 cleanup();
                                 resolve('force');
                             });
-                            
+
                             // Vollbild-Funktionalität
                             let isFullscreen = false;
                             plzFullscreen.addEventListener('click', () => {
@@ -4802,16 +5241,16 @@ async login(ev) {
                                 }
                             });
                         });
-                        
+
                         // Wenn abgebrochen, hier stoppen
                         if (userChoice === 'cancel') {
                             return;
                         }
-                        
+
                         // Wenn "Trotzdem speichern", mit force_create flag weitermachen
                         body.force_create = true;
                     }
-                    
+
                     await this.apiPut(`/records/${this.editingId}`, body);
                     this.toast('Akte gespeichert', 'success');
 
@@ -4938,9 +5377,11 @@ async login(ev) {
                     }
                     
                     // Dublettenerkennung vor der Erstellung
+                    // Content bereinigen: Geschwärzte Spans und Checkboxen entfernen für bessere Vergleichbarkeit
+                    const cleanContent = this.stripRedactionSpans(body.content).replace(/<input[^>]*type=["']checkbox["'][^>]*>/gi, '');
                     const duplicateCheck = await this.apiPost('/records/check-duplicates', {
                         title: body.title,
-                        content: body.content,
+                        content: cleanContent,
                         address: body.address,
                         hashtags: body.hashtags
                     }, false);
@@ -4988,15 +5429,19 @@ async login(ev) {
                                 <div class="modal-body" style="overflow: hidden; display: flex; flex-direction: column;" id="duplicateModalBody">
                                     <p>${dialogMessage}</p>
                                     <div class="duplicate-list" style="flex: 1; overflow-y: auto; margin: 15px 0; min-height: 200px;">
-                                        ${duplicates.map(dup => `
+                                        ${duplicates.map(dup => {
+                                            // Content bereinigen: Geschwärzte Spans und Checkboxen entfernen für bessere Darstellung
+                                            const cleanDupContent = this.stripRedactionSpans(dup.content).replace(/<input[^>]*type=["']checkbox["'][^>]*>/gi, '').replace(/<[^>]+>/g, '').substring(0, 150);
+                                            return `
                                             <div class="duplicate-item" style="padding: 12px; border: 1px solid var(--border-color); border-radius: var(--radius); cursor: pointer; transition: background 0.2s, border-color 0.2s; border-left: ${dup.is_exact_match ? '4px solid var(--primary, #3b82f6)' : '4px solid var(--border-color)'}; margin-bottom: 0;" data-id="${dup.id}">
                                                 <div style="font-weight: 600; color: var(--text-main); display: flex; justify-content: space-between; align-items: center;">
                                                     <span>#${dup.number} - ${dup.title}</span>
                                                     ${dup.is_exact_match ? '<span style="font-size: 0.75em; background: var(--primary, #3b82f6); color: white; padding: 2px 8px; border-radius: 12px;">Exakt</span>' : ''}
                                                 </div>
-                                                <div style="font-size: 0.9em; color: var(--text-muted); margin-top: 4px;">${dup.content.substring(0, 100)}${dup.content.length > 100 ? '...' : ''}</div>
+                                                <div style="font-size: 0.9em; color: var(--text-muted); margin-top: 4px;">${cleanDupContent}${dup.content.length > 150 ? '...' : ''}</div>
                                             </div>
-                                        `).join('')}
+                                            `;
+                                        }).join('')}
                                     </div>
                                     <style>
                                         .duplicate-item {
@@ -5139,8 +5584,239 @@ async login(ev) {
                         }
                     }
 
-                    const result = await this.apiPost('/records', body);
-                    this.toast('Akte erstellt', 'success');
+                    // Bei Draft-Akten: Erst Dublettenprüfung, dann Update
+                    let result;
+                    console.log('🔍 Speichervorgang - isDraft:', this.isDraft, 'editingId:', this.editingId);
+                    if (this.isDraft && this.editingId) {
+                        console.log('🔍 Draft-Akte wird gespeichert - führe Dublettenprüfung durch');
+                        console.log('📝 Titel:', body.title);
+                        console.log('📝 Original Content Länge:', body.content.length);
+                        
+                        // Dublettenprüfung auch bei Draft-Akten durchführen
+                        // Content bereinigen: Geschwärzte Spans und Checkboxen entfernen für bessere Vergleichbarkeit
+                        const cleanContent = this.stripRedactionSpans(body.content).replace(/<input[^>]*type=["']checkbox["'][^>]*>/gi, '');
+                        console.log('📝 Bereinigter Content Länge:', cleanContent.length);
+                        
+                        const duplicateCheck = await this.apiPost('/records/check-duplicates', {
+                            title: body.title,
+                            content: cleanContent,
+                            address: body.address,
+                            hashtags: body.hashtags,
+                            exclude_id: this.editingId // Aktuelle Draft-Akte ausschließen
+                        }, false);
+
+                        console.log('🔍 Dublettenprüfung Ergebnis:', duplicateCheck);
+
+                        if (duplicateCheck.duplicate_check && duplicateCheck.duplicate_check.duplicates && duplicateCheck.duplicate_check.duplicates.length > 0) {
+                            // Dubletten gefunden - Draft-Akte löschen und Dialog zeigen
+                            console.log('Dubletten gefunden bei Draft-Akte:', duplicateCheck.duplicate_check.duplicates);
+                            
+                            try {
+                                await this.apiDelete(`/records/${this.editingId}`);
+                                console.log('Draft-Akte gelöscht wegen Dubletten');
+                            } catch (e) {
+                                console.error('Fehler beim Löschen der Draft-Akte:', e);
+                            }
+                            
+                            this.editingId = null;
+                            this.isDraft = false;
+                            
+                            // Dubletten-Dialog anzeigen (gleicher Code wie oben)
+                            const duplicateDialog = document.createElement('div');
+                            duplicateDialog.className = 'modal-overlay show';
+                            duplicateDialog.style.zIndex = '10000';
+                            duplicateDialog.style.visibility = 'visible';
+                            duplicateDialog.style.opacity = '1';
+                            
+                            const duplicateItemsHtml = duplicateCheck.duplicate_check.duplicates.map(d => {
+                                // Content bereinigen: Geschwärzte Spans und Checkboxen entfernen für bessere Darstellung
+                                const cleanDupContent = this.stripRedactionSpans(d.content || '').replace(/<input[^>]*type=["']checkbox["'][^>]*>/gi, '').replace(/<[^>]+>/g, '').substring(0, 150);
+                                return `
+                                <div class="duplicate-item" data-id="${d.id}">
+                                    <div class="duplicate-title">#${this.escapeHtml(d.number)} - ${this.escapeHtml(d.title)}</div>
+                                    <div class="duplicate-content">${this.escapeHtml(cleanDupContent)}${(d.content || '').length > 150 ? '...' : ''}</div>
+                                    <div class="duplicate-meta">
+                                        <span class="duplicate-date">${d.created_at ? new Date(d.created_at).toLocaleDateString('de-DE') : ''}</span>
+                                    </div>
+                                </div>
+                                `;
+                            }).join('');
+                            
+                            duplicateDialog.innerHTML = `
+                                <div class="modal" id="duplicateModal" style="max-width: 700px; width: 700px;">
+                                    <div class="modal-header">
+                                        <h3>⚠️ Mögliche Dubletten erkannt</h3>
+                                        <div class="modal-header-actions">
+                                            <button class="header-btn" id="duplicateFullscreen" aria-label="Vollbild" title="Vollbildmodus">
+                                                <i class="fas fa-expand"></i>
+                                            </button>
+                                            <button class="header-btn" id="duplicateClose" aria-label="Schliessen">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Eine Akte mit ähnlichem Titel existiert bereits:</p>
+                                        <div class="duplicate-list">
+                                            ${duplicateItemsHtml}
+                                        </div>
+                                        <style>
+                                            .duplicate-list {
+                                                max-height: 300px;
+                                                overflow-y: auto;
+                                                margin-top: 15px;
+                                            }
+                                            .duplicate-item {
+                                                padding: 12px;
+                                                border: 1px solid #ddd;
+                                                border-radius: 6px;
+                                                margin-bottom: 8px;
+                                                cursor: pointer;
+                                                transition: all 0.2s;
+                                            }
+                                            .duplicate-item:hover {
+                                                background-color: #f5f5f5;
+                                                border-color: #007bff;
+                                            }
+                                            .duplicate-title {
+                                                font-weight: 600;
+                                                margin-bottom: 4px;
+                                                color: #333;
+                                            }
+                                            .duplicate-content {
+                                                font-size: 0.9em;
+                                                color: #666;
+                                                margin-bottom: 4px;
+                                                line-height: 1.4;
+                                            }
+                                            .duplicate-meta {
+                                                display: flex;
+                                                gap: 10px;
+                                                font-size: 0.85rem;
+                                                color: #666;
+                                            }
+                                            .duplicate-number {
+                                                background-color: #e9ecef;
+                                                padding: 2px 6px;
+                                                border-radius: 3px;
+                                            }
+                                            .duplicate-list::-webkit-scrollbar {
+                                                width: 8px;
+                                            }
+                                            .duplicate-list::-webkit-scrollbar-track {
+                                                background: transparent;
+                                            }
+                                            .duplicate-list::-webkit-scrollbar-thumb {
+                                                background: #ccc;
+                                                border-radius: 4px;
+                                            }
+                                            .duplicate-list::-webkit-scrollbar-thumb:hover {
+                                                background: #999;
+                                            }
+                                            body.dark-mode .duplicate-list::-webkit-scrollbar-thumb {
+                                                background: #444;
+                                            }
+                                            body.dark-mode .duplicate-list::-webkit-scrollbar-thumb:hover {
+                                                background: #666;
+                                            }
+                                            body.dark-mode .duplicate-title {
+                                                color: #e0e0e0;
+                                            }
+                                            body.dark-mode .duplicate-content {
+                                                color: #b0b0b0;
+                                            }
+                                            body.dark-mode .duplicate-meta {
+                                                color: #b0b0b0;
+                                            }
+                                        </style>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button class="btn btn-secondary" id="cancelDuplicateBtn">Abbrechen</button>
+                                        <button class="btn btn-primary" id="forceCreateBtn">Trotzdem erstellen</button>
+                                    </div>
+                                </div>
+                            `;
+                            document.body.appendChild(duplicateDialog);
+
+                            // Event-Handler mit Promise
+                            const userChoice = await new Promise((resolve) => {
+                                const cancelBtn = duplicateDialog.querySelector('#cancelDuplicateBtn');
+                                const forceBtn = duplicateDialog.querySelector('#forceCreateBtn');
+                                const closeBtn = duplicateDialog.querySelector('#duplicateClose');
+                                const fullscreenBtn = duplicateDialog.querySelector('#duplicateFullscreen');
+                                const duplicateItems = duplicateDialog.querySelectorAll('.duplicate-item');
+                                const duplicateModal = duplicateDialog.querySelector('#duplicateModal');
+
+                                cancelBtn.addEventListener('click', () => {
+                                    duplicateDialog.remove();
+                                    resolve('cancel');
+                                });
+
+                                forceBtn.addEventListener('click', () => {
+                                    duplicateDialog.remove();
+                                    resolve('force');
+                                });
+
+                                closeBtn.addEventListener('click', () => {
+                                    duplicateDialog.remove();
+                                    resolve('cancel');
+                                });
+
+                                // Vollbild-Funktionalität
+                                let isFullscreen = false;
+                                fullscreenBtn.addEventListener('click', () => {
+                                    isFullscreen = !isFullscreen;
+                                    if (isFullscreen) {
+                                        duplicateModal.classList.add('fullscreen');
+                                    } else {
+                                        duplicateModal.classList.remove('fullscreen');
+                                    }
+                                });
+
+                                // Klick auf eine Dublette - zur existierenden Akte wechseln
+                                duplicateItems.forEach(item => {
+                                    item.addEventListener('click', () => {
+                                        const recordId = parseInt(item.dataset.id);
+                                        duplicateDialog.remove();
+                                        resolve({ action: 'switch', recordId });
+                                    });
+                                });
+                            });
+                            
+                            // User-Choice verarbeiten
+                            if (userChoice === 'cancel') {
+                                // Button wiederherstellen
+                                if (submitBtn) {
+                                    submitBtn.disabled = false;
+                                    submitBtn.innerHTML = originalBtnText;
+                                }
+                                if (savingOverlay) {
+                                    savingOverlay.style.display = 'none';
+                                }
+                                return; // Abbrechen, nichts tun
+                            } else if (userChoice === 'force') {
+                                // Erzwingen der Erstellung - neue Akte erstellen (Draft wurde gelöscht)
+                                body.force_create = true;
+                                result = await this.apiPost('/records', body);
+                                this.toast('Akte erstellt', 'success');
+                            } else if (userChoice && userChoice.action === 'switch') {
+                                // Zur existierenden Akte wechseln
+                                this.closeModal(false, true);
+                                this.openRecord(userChoice.recordId);
+                                return;
+                            }
+                        } else {
+                            // Keine Dubletten - Draft-Akte aktualisieren
+                            result = await this.apiPut(`/records/${this.editingId}`, body);
+                            this.toast('Akte gespeichert', 'success');
+                            this.isDraft = false; // Draft-Status aufheben
+                        }
+                    } else {
+                        // Normale Akte erstellen
+                        result = await this.apiPost('/records', body);
+                        this.toast('Akte erstellt', 'success');
+                    }
+                    
                     if (this.pendingReminder && result.record) {
                         await this.apiPost(`/records/${result.record.id}/reminders`, this.pendingReminder);
                         // Keine separate Toast-Meldung für Erinnerung
@@ -5498,23 +6174,36 @@ async login(ev) {
             }
         }
 
-        // --- SOFORTIGES AUSBLENDEN (Gegen Blitzen/Verzögerung) ---
-        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show'));
-        document.body.style.overflow = '';
-        
         // --- CLEANUP IM HINTERGRUND ---
         const recordIdToUnlock = this.editingId;
         const needsUnlock = this.editingId && this.currentLock;
+        const isDraftRecord = this.isDraft;
 
         this.stopLockCheck();
         this.editingId = null;
         this.currentLock = null;
         this.hasChanges = false;
+        this.isDraft = false;
+        
+        // Wenn es eine Draft-Akte ist und ohne Speichern geschlossen wird, löschen
+        if (isDraftRecord && recordIdToUnlock && !skipChangesCheck) {
+            console.log('Lösche Draft-Akte:', recordIdToUnlock);
+            try {
+                await this.apiDelete(`/records/${recordIdToUnlock}`);
+                console.log('Draft-Akte gelöscht');
+            } catch (e) {
+                console.error('Fehler beim Löschen der Draft-Akte:', e);
+            }
+        }
         
         if (needsUnlock) {
             // Nicht 'await'en, damit das UI sofort reagiert
             this.unlockRecord(recordIdToUnlock).catch(()=>{});
         }
+
+        // --- SOFORTIGES AUSBLENDEN (Gegen Blitzen/Verzögerung) ---
+        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show'));
+        document.body.style.overflow = '';
         
         // Reset fullscreen state
         const modal = document.getElementById('recordModal');
@@ -6169,10 +6858,14 @@ async login(ev) {
             return;
         }
         
-        if (!this.editingId) { 
-            this.toast('Bitte erstellen oder öffnen Sie zuerst eine Akte', 'warning'); 
-            ev.target.value = '';
-            return; 
+        // Wenn keine editingId existiert, Draft-Akte erstellen
+        if (!this.editingId) {
+            const draftCreated = await this.ensureDraftExists();
+            if (!draftCreated) {
+                this.toast('Fehler beim Erstellen der Akte', 'error');
+                ev.target.value = '';
+                return;
+            }
         }
         
         const files = ev.target.files;
@@ -7012,6 +7705,114 @@ async login(ev) {
         this.exec('insertHTML', checkbox.outerHTML + ' ');
     },
 
+    async redactSelection() {
+        const selection = window.getSelection();
+        
+        // Wenn keine editingId existiert, Draft-Akte erstellen
+        if (!this.editingId) {
+            const draftCreated = await this.ensureDraftExists();
+            if (!draftCreated) {
+                this.toast('Fehler beim Erstellen der Akte', 'error');
+                return;
+            }
+        }
+
+        const contentElement = document.getElementById('recordContent');
+
+        // Prüfen ob eine geschwärzte Stelle mit blauem Rand markiert ist
+        const markedSpan = contentElement.querySelector('.redacted-marked.redacted-selected');
+        if (markedSpan) {
+            const redactionId = markedSpan.getAttribute('data-redaction-id');
+            if (redactionId) {
+                try {
+                    await this.apiDelete(`/records/${this.editingId}/redacted/${redactionId}`);
+                    this.toast('Schwärzung aufgehoben', 'success');
+                    // Geschwärzten Span direkt im DOM entfernen
+                    const spanText = markedSpan.textContent;
+                    const textNode = document.createTextNode(spanText);
+                    markedSpan.parentNode.replaceChild(textNode, markedSpan);
+                } catch (e) {
+                    this.toast('Fehler beim Aufheben: ' + e.message, 'error');
+                }
+            }
+            return;
+        }
+
+        // Prüfen ob geschwärzter Text markiert wurde (Schwärzung aufheben)
+        if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+            const range = selection.getRangeAt(0);
+            const selectedNode = range.commonAncestorContainer;
+            const redactedSpan = selectedNode.nodeType === Node.ELEMENT_NODE
+                ? selectedNode.closest('.redacted-marked')
+                : selectedNode.parentElement?.closest('.redacted-marked');
+
+            if (redactedSpan) {
+                // Schwärzung aufheben
+                const redactionId = redactedSpan.getAttribute('data-redaction-id');
+                if (redactionId) {
+                    try {
+                        await this.apiDelete(`/records/${this.editingId}/redacted/${redactionId}`);
+                        this.toast('Schwärzung aufgehoben', 'success');
+                        // Geschwärzten Span direkt im DOM entfernen
+                        const spanText = redactedSpan.textContent;
+                        const textNode = document.createTextNode(spanText);
+                        redactedSpan.parentNode.replaceChild(textNode, redactedSpan);
+                    } catch (e) {
+                        this.toast('Fehler beim Aufheben: ' + e.message, 'error');
+                    }
+                }
+                return;
+            }
+        }
+
+        // Neue Schwärzung erstellen
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+            this.toast('Bitte markieren Sie zuerst den Text', 'warning');
+            return;
+        }
+
+        const range = selection.getRangeAt(0);
+
+        // Den markierten Text extrahieren
+        const selectedText = range.toString().trim();
+
+        if (!selectedText) {
+            this.toast('Bitte markieren Sie zuerst den Text', 'warning');
+            return;
+        }
+
+        try {
+            const data = await this.apiPost(`/records/${this.editingId}/redacted`, {
+                field_name: 'content',
+                redacted_text: selectedText
+            });
+
+            if (data.success) {
+                this.toast('Textstelle geschwärzt', 'success');
+                // Editor neu laden, um Schwärzung anzuzeigen
+                await this.loadRecord(this.editingId);
+            }
+        } catch (e) {
+            this.toast('Fehler beim Schwärzen: ' + e.message, 'error');
+        }
+    },
+
+    async unredactOnClick(redactionId) {
+        if (!this.editingId) {
+            this.toast('Keine Akte geöffnet', 'error');
+            return;
+        }
+
+        try {
+            await this.apiDelete(`/records/${this.editingId}/redacted/${redactionId}`);
+            this.toast('Schwärzung aufgehoben', 'success');
+            // Editor neu laden, um Änderung anzuzeigen
+            await this.loadRecord(this.editingId);
+        } catch (e) {
+            this.toast('Fehler beim Aufheben: ' + e.message, 'error');
+        }
+    },
+
     // Helper: Get nth weekday of a month (nth: 1-5, weekday: 0=Sun, 1=Mon, ..., 6=Sat)
     getNthWeekdayOfMonth(year, month, nth, weekday) {
         const firstDay = new Date(year, month, 1);
@@ -7371,6 +8172,7 @@ async login(ev) {
                         <span class="perm-tag ${u.can_view_stats?'on':'off'}" title="Statistik"><i class="fas fa-chart-bar"></i></span>
                         <span class="perm-tag ${u.can_chat?'on':'off'}" title="Chat"><i class="fas fa-comments"></i></span>
                         <span class="perm-tag ${u.can_view_archive?'on':'off'}" title="Archiv ansehen"><i class="fas fa-archive"></i></span>
+                        <span class="perm-tag ${u.can_view_redacted?'on':'off'}" title="Geschwärzten Text lesen"><i class="fas fa-eye-slash"></i></span>
                         <span class="perm-tag ${u.can_archive?'on':'off'}" title="Archivieren"><i class="fas fa-box-archive"></i></span>
                     </td>
                     <td>${u.active ? '<span class="status-active">Aktiv</span>' : '<span class="status-inactive">Inaktiv</span>'}</td>
@@ -7469,6 +8271,7 @@ async login(ev) {
             can_view_calendar: document.getElementById('userEditViewCalendar').checked,
             can_view_assistant: document.getElementById('userEditViewAssistant').checked,
             can_view_archive: document.getElementById('userEditViewArchive').checked,
+            can_view_redacted: document.getElementById('userEditViewRedacted').checked,
             can_archive: document.getElementById('userEditArchive').checked,
         };
         try {
@@ -7528,6 +8331,7 @@ async login(ev) {
         document.getElementById('userEditViewCalendar').checked = user ? (user.can_view_calendar ?? true) : true;
         document.getElementById('userEditViewAssistant').checked = user ? (user.can_view_assistant ?? true) : true;
         document.getElementById('userEditViewArchive').checked = user ? (user.can_view_archive ?? true) : true;
+        document.getElementById('userEditViewRedacted').checked = user ? (user.can_view_redacted ?? false) : false;
         document.getElementById('userEditArchive').checked = user ? (user.can_archive ?? true) : true;
         document.getElementById('userEditPass').value = '';
         document.getElementById('userPassGroup').style.display = user ? 'none' : 'block';
@@ -10943,15 +11747,32 @@ async login(ev) {
         return div.innerHTML;
     },
 
+    decodeHtmlEntities(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.innerHTML = text;
+        return div.textContent;
+    },
+
     sanitizeHtml(html) {
         if (!html) return '';
         const div = document.createElement('div');
         div.innerHTML = html;
-        
+
+        // Checkbox-Zustände aus data-checked Attribut sichern
+        const checkboxes = div.querySelectorAll('input[type="checkbox"]');
+        const checkboxStates = [];
+        checkboxes.forEach(cb => {
+            checkboxStates.push({
+                element: cb,
+                checked: cb.getAttribute('data-checked') === 'true'
+            });
+        });
+
         // Scripte entfernen
         const scripts = div.querySelectorAll('script');
         scripts.forEach(s => s.remove());
-        
+
         // Event-Handler entfernen
         const all = div.querySelectorAll('*');
         all.forEach(el => {
@@ -10965,24 +11786,79 @@ async login(ev) {
                 el.removeAttribute('href');
             }
         });
-        
+
+        // Checkbox-Zustände wiederherstellen und als checked Attribut setzen
+        checkboxStates.forEach(item => {
+            if (item.element.parentNode) {
+                item.element.checked = item.checked;
+                item.element.setAttribute('data-checked', item.checked ? 'true' : 'false');
+                // WICHTIG: checked Attribut korrekt setzen für HTML-Persistenz
+                if (item.checked) {
+                    item.element.setAttribute('checked', 'checked');
+                } else {
+                    item.element.removeAttribute('checked');
+                }
+            }
+        });
+
+        // HTML zurückgeben - checked Attribute sind jetzt korrekt gesetzt
+        return div.innerHTML;
+    },
+
+    stripRedactionSpans(html) {
+        if (!html) return '';
+        const div = document.createElement('div');
+        div.innerHTML = html;
+
+        // Checkbox-Zustände aus data-checked Attribut sichern
+        const checkboxes = div.querySelectorAll('input[type="checkbox"]');
+        const checkboxStates = [];
+        checkboxes.forEach(cb => {
+            checkboxStates.push({
+                element: cb,
+                checked: cb.getAttribute('data-checked') === 'true'
+            });
+        });
+
+        // Alle redacted-text und redacted-marked Spans entfernen und durch ihren Textinhalt ersetzen
+        const redactedSpans = div.querySelectorAll('.redacted-text, .redacted-marked');
+        redactedSpans.forEach(span => {
+            const text = span.textContent;
+            const textNode = document.createTextNode(text);
+            span.parentNode.replaceChild(textNode, span);
+        });
+
+        // Checkbox-Zustände wiederherstellen und als checked Attribut setzen
+        checkboxStates.forEach(item => {
+            if (item.element.parentNode) {
+                item.element.checked = item.checked;
+                item.element.setAttribute('data-checked', item.checked ? 'true' : 'false');
+                // WICHTIG: checked Attribut korrekt setzen für HTML-Persistenz
+                if (item.checked) {
+                    item.element.setAttribute('checked', 'checked');
+                } else {
+                    item.element.removeAttribute('checked');
+                }
+            }
+        });
+
         return div.innerHTML;
     },
 
     // URLs im Text erkennen und in klickbare Links umwandeln
     linkifyUrls(text) {
         if (!text) return text;
-        
+
         // Regex für URL-Erkennung (http, https, www)
         const urlRegex = /(\b(https?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])|(\bwww\.[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gi;
-        
+
         return text.replace(urlRegex, function(url) {
             // Wenn URL kein Protokoll hat, https hinzufügen
             let fullUrl = url;
             if (url.startsWith('www.')) {
                 fullUrl = 'https://' + url;
             }
-            
+
             // Link mit data-Attribut für spätere Event-Behandlung
             return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="auto-link" data-auto-link="true">${url}</a>`;
         });
@@ -10992,6 +11868,48 @@ async login(ev) {
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
         return tmp.textContent || tmp.innerText || '';
+    },
+    
+    stripHtmlKeepCheckboxes(html) {
+        if (!html) return '';
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        
+        // Alle Elemente durchlaufen und HTML-Tags entfernen, aber Checkboxen behalten
+        const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false);
+        let result = '';
+        let currentNode = walker.nextNode();
+        
+        while (currentNode) {
+            if (currentNode.nodeType === Node.TEXT_NODE) {
+                result += currentNode.textContent;
+            } else if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                if (currentNode.tagName === 'INPUT' && currentNode.type === 'checkbox') {
+                    // Checkbox als Unicode-Symbol einfügen
+                    const isChecked = currentNode.hasAttribute('checked') || currentNode.checked;
+                    const checkboxSymbol = isChecked ? '☑' : '☐';
+                    result += checkboxSymbol + ' ';
+                }
+            }
+            currentNode = walker.nextNode();
+        }
+        
+        return result;
+    },
+    
+    extractCheckboxInfo(html) {
+        if (!html) return { total: 0, checked: 0 };
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const checkboxes = tmp.querySelectorAll('input[type="checkbox"]');
+        const total = checkboxes.length;
+        let checked = 0;
+        checkboxes.forEach(cb => {
+            if (cb.hasAttribute('checked') || cb.checked) {
+                checked++;
+            }
+        });
+        return { total, checked };
     },
     formatDate(d) {
         if (!d) return '';
@@ -15615,6 +16533,34 @@ async login(ev) {
 
         const isSelected = this.archiveAuswahlIds && this.archiveAuswahlIds.has(record.id);
 
+        // Schwärzung anwenden - für Archiv-Vorschau (komplett ausblenden)
+        let excerpt = '';
+
+        // HTML-Tags und Entities aus Content entfernen, dann auf 150 Zeichen kürzen
+        excerpt = (record.content || '')
+            .replace(/<[^>]*>/g, '')  // HTML-Tags entfernen
+            .replace(/&nbsp;/g, ' ')  // &nbsp; durch Leerzeichen ersetzen
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .substring(0, 150);
+
+        if (record.redacted_sections && record.redacted_sections.length > 0) {
+            // Im Archiv: geschwärzte Texte komplett durch Platzhalter ersetzen
+            record.redacted_sections.forEach(section => {
+                if (section.field_name === 'content' && section.redacted_text) {
+                    const redactedText = section.redacted_text;
+                    const escapedRedactedText = this.escapeRegex(redactedText);
+                    const regex = new RegExp(escapedRedactedText, 'g');
+                    excerpt = excerpt.replace(regex, '[geschwärzt]');
+                }
+            });
+        }
+
+        excerpt = this.escapeHtml(excerpt);
+
         const html = `
         <div class="record-card ${borderClass}" data-record-id="${record.id}" role="button" tabindex="0">
             <button class="auswahl-indikator ${this.archiveAuswahlIstAktiv ? '' : 'hidden'} ${isSelected ? 'selected' : ''}" type="button" aria-label="Akte auswählen" aria-pressed="${isSelected}">
@@ -15623,7 +16569,7 @@ async login(ev) {
             ${locked}
             <div class="record-number">${record.number}</div>
             <div class="record-title">${this.escapeHtml(record.title)}</div>
-            <div class="record-content">${this.escapeHtml(record.content || '').substring(0, 150)}</div>
+            <div class="record-content">${excerpt}</div>
             <div class="record-meta">
                 <span class="record-status"><i class="${statusIcon.icon}"></i> ${statusIcon.label}</span>
                 <span class="record-attachments"><i class="fas fa-paperclip"></i> ${attachmentCount}</span>

@@ -159,9 +159,12 @@ def init_records_blueprint(app, auth_manager, db_manager, akten_manager, sperr_m
         try:
             data = request.get_json()
             title = InputSanitizer.sanitize_text(data.get('title', '').strip())
-            content = InputSanitizer.sanitize_text(data.get('content', ''))
+            content = InputSanitizer.sanitize_html_content(data.get('content', ''))
             address = InputSanitizer.sanitize_text(data.get('address', ''))
             hashtags = InputSanitizer.sanitize_text(data.get('hashtags', ''))
+            exclude_id = data.get('exclude_id')  # ID einer Akte, die ausgeschlossen werden soll (z.B. Draft-Akte)
+
+            logger.info(f"🔍 Dublettenprüfung angefordert - Titel: '{title}', Content Länge: {len(content)}, exclude_id: {exclude_id}")
 
             if not title:
                 return jsonify({'error': 'Titel ist erforderlich'}), 400
@@ -172,8 +175,11 @@ def init_records_blueprint(app, auth_manager, db_manager, akten_manager, sperr_m
                 content=content,
                 address=address,
                 hashtags=hashtags,
-                user_id=session['user_id']
+                user_id=session['user_id'],
+                exclude_id=exclude_id
             )
+            
+            logger.info(f"🔍 Dublettenprüfung Ergebnis - has_duplicates: {duplicate_check.get('has_duplicates')}, Anzahl: {len(duplicate_check.get('duplicates', []))}")
             
             return jsonify({'success': True, 'duplicate_check': duplicate_check})
             
@@ -221,7 +227,7 @@ def init_records_blueprint(app, auth_manager, db_manager, akten_manager, sperr_m
         try:
             data = request.get_json()
             title = InputSanitizer.sanitize_text(data.get('title', '').strip())
-            content = InputSanitizer.sanitize_text(data.get('content', ''))
+            content = InputSanitizer.sanitize_html_content(data.get('content', ''))
             address = InputSanitizer.sanitize_text(data.get('address', ''))
             hashtags = InputSanitizer.sanitize_text(data.get('hashtags', ''))
             force_create = data.get('force_create', False)  # Überspringt Dublettenprüfung wenn True
@@ -308,7 +314,7 @@ def init_records_blueprint(app, auth_manager, db_manager, akten_manager, sperr_m
                 try:
                     data = request.get_json()
                     title = InputSanitizer.sanitize_text(data.get('title', '').strip())
-                    content = InputSanitizer.sanitize_text(data.get('content', ''))
+                    content = InputSanitizer.sanitize_html_content(data.get('content', ''))
                     address = InputSanitizer.sanitize_text(data.get('address', ''))
                     force_create = data.get('force_create', False)  # Überspringt PLZ-Validierung wenn True
 
@@ -469,6 +475,131 @@ def init_records_blueprint(app, auth_manager, db_manager, akten_manager, sperr_m
             return jsonify({'error': str(e)}), 400
         except Exception as e:
             return jsonify({'error': f'Massen-Loeschung fehlgeschlagen: {str(e)}'}), 500
+
+    @records_bp.route('/all-ids', methods=['GET'])
+    @auth_manager.login_required
+    def get_all_record_ids():
+        """
+        Gibt alle Akten-IDs zurück (für Mehrfachauswahl "Alle auswählen")
+        """
+        try:
+            db_manager = auth_manager.db_manager
+            with db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Alle nicht-archivierten Akten-IDs abrufen
+                cursor.execute('SELECT id FROM records WHERE archived = 0 ORDER BY id')
+                rows = cursor.fetchall()
+
+                ids = [row['id'] for row in rows]
+
+                return jsonify({
+                    'success': True,
+                    'ids': ids,
+                    'count': len(ids)
+                })
+
+        except Exception as e:
+            logger.error(f"Fehler beim Abrufen aller Akten-IDs: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @records_bp.route('/<int:record_id>/redacted', methods=['GET'])
+    @auth_manager.login_required
+    def get_redacted_sections(record_id):
+        """
+        Gibt alle geschwärzten Textstellen einer Akte zurück
+        """
+        try:
+            db_manager = auth_manager.db_manager
+            with db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute('''
+                    SELECT id, field_name, redacted_text, created_by, created_at
+                    FROM redacted_sections
+                    WHERE record_id = ?
+                    ORDER BY field_name
+                ''', (record_id,))
+
+                sections = []
+                for row in cursor.fetchall():
+                    sections.append({
+                        'id': row['id'],
+                        'field_name': row['field_name'],
+                        'redacted_text': row['redacted_text'],
+                        'created_by': row['created_by'],
+                        'created_at': row['created_at']
+                    })
+
+                return jsonify({
+                    'success': True,
+                    'sections': sections
+                })
+
+        except Exception as e:
+            logger.error(f"Fehler beim Abrufen geschwärzter Stellen: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @records_bp.route('/<int:record_id>/redacted', methods=['POST'])
+    @auth_manager.login_required
+    @auth_manager.require_permission('can_write')
+    def add_redacted_section(record_id):
+        """
+        Fügt eine geschwärzte Textstelle hinzu
+        Body: { "field_name": "content", "redacted_text": "geheim" }
+        """
+        try:
+            data = request.get_json(silent=True) or {}
+            field_name = data.get('field_name')
+            redacted_text = data.get('redacted_text')
+
+            if not field_name or redacted_text is None:
+                return jsonify({'error': 'Fehlende Parameter'}), 400
+
+            db_manager = auth_manager.db_manager
+            with db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute('''
+                    INSERT INTO redacted_sections (record_id, field_name, redacted_text, created_by)
+                    VALUES (?, ?, ?, ?)
+                ''', (record_id, field_name, redacted_text, session['user_id']))
+
+                conn.commit()
+
+                return jsonify({
+                    'success': True,
+                    'id': cursor.lastrowid
+                })
+
+        except Exception as e:
+            logger.error(f"Fehler beim Hinzufügen geschwärzter Stelle: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @records_bp.route('/<int:record_id>/redacted/<int:redaction_id>', methods=['DELETE'])
+    @auth_manager.login_required
+    @auth_manager.require_permission('can_write')
+    def delete_redacted_section(record_id, redaction_id):
+        """
+        Löscht eine geschwärzte Textstelle
+        """
+        try:
+            db_manager = auth_manager.db_manager
+            with db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute('''
+                    DELETE FROM redacted_sections
+                    WHERE id = ? AND record_id = ?
+                ''', (redaction_id, record_id))
+
+                conn.commit()
+
+                return jsonify({'success': True})
+
+        except Exception as e:
+            logger.error(f"Fehler beim Löschen geschwärzter Stelle: {e}")
+            return jsonify({'error': str(e)}), 500
     
     @records_bp.route('/massen-status', methods=['POST'])
     @auth_manager.login_required

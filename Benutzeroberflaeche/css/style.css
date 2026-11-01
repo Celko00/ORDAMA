@@ -17,7 +17,7 @@
     --shadow-hover: 0 10px 30px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06);
     --glass-bg: rgba(255, 255, 255, 0.8);
     --glass-border: rgba(255, 255, 255, 0.3);
-    
+
     /* Dark Mode Defaults (Light) */
     --bg-app: #f8f9fa;
     --bg-card: #ffffff;
@@ -25,6 +25,33 @@
     --text-muted: #6c757d;
     --border-color: #dee2e6;
     --input-bg: #ffffff;
+}
+
+/* Redacted text styling */
+.redacted-marked {
+    background-color: #000;
+    color: #fff;
+    padding: 2px 4px;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.redacted-marked.redacted-selected {
+    border: 2px solid #4aa3ff;
+}
+
+/* Formularfelder nicht bei Touch-Selektion mit auswählen */
+.form-group label {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Checkboxen im Editor vertikal mittig ausrichten */
+#recordContent input[type="checkbox"] {
+    vertical-align: middle;
+    margin: 0 4px;
+    position: relative;
+    top: -1px;
 }
 
 /* Dark Mode Theme */
@@ -3657,9 +3684,20 @@ body.dark-mode .custom-modal-dropdown .dropdown-menu button.selected span {
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
-    -webkit-line-clamp: 2; /* Von 3 auf 2 reduziert für mehr Platz */
-    line-clamp: 2;
+    -webkit-line-clamp: 6; /* Erhöht für bessere Formatierungsdarstellung */
+    line-clamp: 6;
     -webkit-box-orient: vertical;
+    white-space: pre-wrap; /* Leerzeilen und Absätze beibehalten */
+}
+
+/* Checkboxen in der Vorschau korrekt ausrichten und deaktivieren */
+.record-card .record-excerpt input[type="checkbox"] {
+    vertical-align: middle;
+    margin: 0 4px;
+    width: 1em;
+    height: 1em;
+    pointer-events: none; /* Nicht anklickbar in der Vorschau */
+    cursor: default;
 }
 .record-card .record-meta {
     display: flex;

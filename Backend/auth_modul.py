@@ -201,6 +201,7 @@ class AuthManager:
                     'can_view_calendar': bool(full_user.get('can_view_calendar', 1)),
                     'can_view_assistant': bool(full_user.get('can_view_assistant', 1)),
                     'can_view_archive': bool(full_user.get('can_view_archive', 1)),
+                    'can_view_redacted': bool(full_user.get('can_view_redacted', 0)),
                     'signature': full_user.get('signature')
                 }
             }
@@ -272,6 +273,7 @@ class AuthManager:
                     'can_view_calendar': bool(user.get('can_view_calendar', 1)),
                     'can_view_assistant': bool(user.get('can_view_assistant', 1)),
                     'can_view_archive': bool(user.get('can_view_archive', 1)),
+                    'can_view_redacted': bool(user.get('can_view_redacted', 0)),
                     'signature': user.get('signature')
                 }
         return None

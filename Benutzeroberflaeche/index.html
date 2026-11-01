@@ -1662,26 +1662,9 @@
                 <div class="form-group editor-group">
                     <label>Inhalt</label>
                     <div class="content-editor-toolbar">
-                        <button type="button" class="toolbar-btn" onclick="App.exec('bold')"><i class="fas fa-bold"></i></button>
-                        <button type="button" class="toolbar-btn" onclick="App.exec('italic')"><i class="fas fa-italic"></i></button>
-                        <button type="button" class="toolbar-btn" onclick="App.exec('underline')"><i class="fas fa-underline"></i></button>
-                        <div class="custom-modal-dropdown toolbar-dropdown" id="modalFontSizeDropdown">
-                            <input type="hidden" id="recordFontSize" value="16pt">
-                            <button type="button" class="toolbar-btn dropdown-toggle" style="min-width: 90px; padding: 0 8px;">
-                                <span>16pt</span>
-                            </button>
-                            <div class="dropdown-menu">
-                                <button type="button" data-value="10pt">10pt</button>
-                                <button type="button" data-value="12pt">12pt</button>
-                                <button type="button" data-value="14pt">14pt</button>
-                                <button type="button" data-value="16pt" class="selected">16pt</button>
-                                <button type="button" data-value="18pt">18pt</button>
-                                <button type="button" data-value="20pt">20pt</button>
-                                <button type="button" data-value="24pt">24pt</button>
-                            </div>
-                        </div>
-                        <button type="button" class="toolbar-btn" onclick="App.insertDate()"><i class="fas fa-calendar"></i></button>
-                        <button type="button" class="toolbar-btn" onclick="App.insertCheckbox()"><i class="fas fa-check-square"></i></button>
+                        <button type="button" class="toolbar-btn" onclick="App.insertDate()" tabindex="-1"><i class="fas fa-calendar"></i></button>
+                        <button type="button" class="toolbar-btn" onclick="App.insertCheckbox()" tabindex="-1"><i class="fas fa-check-square"></i></button>
+                        <button type="button" class="toolbar-btn redact-btn" onclick="App.redactSelection()" title="Text schwärzen" style="display:none;" tabindex="-1"><i class="fas fa-eye-slash"></i></button>
                     </div>
                     <div id="recordContent" class="content-area" contenteditable="true"></div>
                 </div>
@@ -1691,10 +1674,10 @@
                         <div class="datetime-picker-container">
                             <input type="hidden" id="recordReminderDateValue">
                             <input type="text" id="recordReminderDate" class="form-control datetime-picker-input" placeholder="Startdatum" readonly>
-                            <button type="button" class="datetime-picker-btn" onclick="App.openDateTimePicker('start')">
+                            <button type="button" class="datetime-picker-btn" onclick="App.openDateTimePicker('start')" tabindex="-1">
                                 <i class="fas fa-calendar-alt"></i>
                             </button>
-                            <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearDateTime('start')">
+                            <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearDateTime('start')" tabindex="-1">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
@@ -1704,10 +1687,10 @@
                         <div class="datetime-picker-container">
                             <input type="hidden" id="recordReminderEndDateValue">
                             <input type="text" id="recordReminderEndDate" class="form-control datetime-picker-input" placeholder="Enddatum" readonly>
-                            <button type="button" class="datetime-picker-btn" onclick="App.openDateTimePicker('end')">
+                            <button type="button" class="datetime-picker-btn" onclick="App.openDateTimePicker('end')" tabindex="-1">
                                 <i class="fas fa-calendar-alt"></i>
                             </button>
-                            <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearDateTime('end')">
+                            <button type="button" class="datetime-picker-btn datetime-picker-clear" onclick="App.clearDateTime('end')" tabindex="-1">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
@@ -2401,6 +2384,10 @@
                             <input type="checkbox" id="userEditViewArchive" checked>
                             <span>Archiv ansehen</span>
                         </label>
+                        <label class="checkbox-label" style="padding: 10px 14px; background: var(--light); border-radius: 8px;">
+                            <input type="checkbox" id="userEditViewRedacted">
+                            <span>Geschwärzten Text lesen</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -2568,7 +2555,7 @@
 <!-- Cache-Busting -->(Mobile lädt sonst gern alte JS-Versionen aus dem Cache) -->
 <script src="js/audio-visualizer.js?v=20260720_1"></script>
 <script src="js/mod/offline-storage.js?v=20260816_1"></script>
-<script src="js/app.js?v=20260829_4"></script>
+<script src="js/app.js?v=20260829_9"></script>
 <script src="js/mod/mehrfachauswahl.js?v=20260517_1"></script>
 <script src="js/mod/karte.js?v=20260520_1"></script>
 <!-- ════════════════════════════════════════════

@@ -1,0 +1,28 @@
+{
+    "id": 5,
+    "name": "tesst3",
+    "structure": {
+        "elements": [
+            {
+                "type": "table",
+                "x": 50,
+                "y": 50,
+                "content": "",
+                "fontSize": "14px",
+                "fontFamily": "inherit",
+                "bold": false,
+                "italic": false,
+                "width": 710,
+                "height": 540,
+                "length": 150,
+                "rows": 3,
+                "cols": 3,
+                "colWidths": [],
+                "cellConfigs": {},
+                "id": "feld_1780222995213"
+            }
+        ],
+        "height": 1131,
+        "width": 800
+    }
+}

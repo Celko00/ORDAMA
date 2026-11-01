@@ -471,6 +471,7 @@ def create_user_blueprint(auth_manager, db_manager, config, ip_whitelist_decorat
             can_view_calendar = 1 if data.get('can_view_calendar', True) else 0
             can_view_assistant = 1 if data.get('can_view_assistant', True) else 0
             can_view_archive = 1 if data.get('can_view_archive', True) else 0
+            can_view_redacted = 1 if data.get('can_view_redacted', False) else 0
 
             if not username or not password:
                 return jsonify({'error': 'Benutzername und Passwort erforderlich'}), 400
@@ -486,7 +487,7 @@ def create_user_blueprint(auth_manager, db_manager, config, ip_whitelist_decorat
             user_id = db_manager.create_user(username, password, role, can_read, can_write, can_delete, can_download, can_upload, can_fill_forms,
                                               can_set_category, can_set_status, can_set_border_color, can_set_reminder, can_delete_termine,
                                               can_set_erinnerung, can_delete_erinnerung, can_set_note, can_archive, can_view_stats,
-                                              can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive)
+                                              can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive, can_view_redacted)
             
             # Neue Nutzer starten mit aktuellen Standard-Auswahlfeldern (optional)
             try:
@@ -566,6 +567,8 @@ def create_user_blueprint(auth_manager, db_manager, config, ip_whitelist_decorat
                 fields['can_view_assistant'] = 1 if data['can_view_assistant'] else 0
             if 'can_view_archive' in data:
                 fields['can_view_archive'] = 1 if data['can_view_archive'] else 0
+            if 'can_view_redacted' in data:
+                fields['can_view_redacted'] = 1 if data['can_view_redacted'] else 0
 
             db_manager.update_user(user_id, **fields)
             return jsonify({'success': True})

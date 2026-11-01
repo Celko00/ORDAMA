@@ -344,28 +344,44 @@
         this._aktualisiereAuswahlToolbar();
     };
 
-    App.waehleAlleSichtbarenAkten = function() {
+    App.waehleAlleSichtbarenAkten = async function() {
         if (!this.auswahlIstAktiv) this.aktiviereAuswahlmodus();
 
-        const cards = this._holeSichtbareAuswahlCards();
-        if (!cards.length) {
-            this.toast('Keine Akten zum Auswählen vorhanden', 'warning');
-            return;
-        }
+        const isGallery = this.currentSection === 'gallery';
 
-        cards.forEach(card => {
-            const id = card.dataset.recordId;
-            if (!id) return;
-            this.auswahlIds.add(id);
-            this._setzeCardAuswahlklasse(id, true);
-            this.auswahlLetzteId = id;
-        });
+        try {
+            // Alle Akten-IDs vom Server laden (ohne Limit)
+            const endpoint = isGallery ? '/gallery/all-ids' : '/records/all-ids';
+            const data = await this.apiGet(endpoint, true);
 
-        this._aktualisiereAuswahlToolbar();
+            if (!data || !data.ids || !data.ids.length) {
+                this.toast('Keine Akten zum Auswählen vorhanden', 'warning');
+                return;
+            }
 
-        // Karte automatisch zoomen, wenn wir im Karten-Modus sind
-        if (this.currentSection === 'karte' && this.auswahlIds.size > 0) {
-            this._karteFokusAufAuswahl();
+            // Alle IDs zur Auswahl hinzufügen
+            data.ids.forEach(id => {
+                this.auswahlIds.add(String(id));
+            });
+
+            // Sichtbare Karten visuell markieren
+            const cards = this._holeSichtbareAuswahlCards();
+            cards.forEach(card => {
+                const id = card.dataset.recordId;
+                if (id && this.auswahlIds.has(id)) {
+                    this._setzeCardAuswahlklasse(id, true);
+                }
+            });
+
+            this._aktualisiereAuswahlToolbar();
+
+            // Karte automatisch zoomen, wenn wir im Karten-Modus sind
+            if (this.currentSection === 'karte' && this.auswahlIds.size > 0) {
+                this._karteFokusAufAuswahl();
+            }
+        } catch (e) {
+            console.error('Fehler beim Laden aller Akten-IDs:', e);
+            this.toast('Fehler beim Laden aller Akten', 'error');
         }
     };
 

@@ -260,6 +260,7 @@ class DatabaseManager:
             cursor.execute("UPDATE users SET can_view_calendar = 1 WHERE can_view_calendar IS NULL")
             cursor.execute("UPDATE users SET can_archive = 1 WHERE can_archive IS NULL")
             cursor.execute("UPDATE users SET can_view_archive = 1 WHERE can_view_archive IS NULL")
+            cursor.execute("UPDATE users SET can_view_redacted = 0 WHERE can_view_redacted IS NULL")
 
             conn.commit()
 
@@ -381,7 +382,7 @@ class DatabaseManager:
                        can_read, can_write, can_delete, can_download, can_upload, can_fill_forms,
                        can_set_category, can_set_status, can_set_border_color, can_set_reminder, can_delete_termine,
                        can_set_erinnerung, can_delete_erinnerung, can_set_note, can_archive,
-                       can_view_stats, can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive, signature, is_online
+                       can_view_stats, can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive, can_view_redacted, signature, is_online
                 FROM users ORDER BY username
             ''')
             rows = cursor.fetchall()
@@ -396,7 +397,7 @@ class DatabaseManager:
                        can_read, can_write, can_delete, can_download, can_upload, can_fill_forms,
                        can_set_category, can_set_status, can_set_border_color, can_set_reminder, can_delete_termine,
                        can_set_erinnerung, can_delete_erinnerung, can_set_note, can_archive,
-                       can_view_stats, can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive, signature
+                       can_view_stats, can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive, can_view_redacted, signature
                 FROM users WHERE id = ?
             ''', (user_id,))
             row = cursor.fetchone()
@@ -409,7 +410,7 @@ class DatabaseManager:
     def create_user(self, username, password, role='user', can_read=1, can_write=1, can_delete=0, can_download=1, can_upload=1, can_fill_forms=1,
                     can_set_category=1, can_set_status=1, can_set_border_color=1, can_set_reminder=1, can_delete_termine=1,
                     can_set_erinnerung=1, can_delete_erinnerung=1, can_set_note=1, can_archive=1,
-                    can_view_stats=1, can_view_records=1, can_view_gallery=1, can_chat=1, can_view_map=1, can_view_calendar=1, can_view_assistant=1, can_view_archive=1):
+                    can_view_stats=1, can_view_records=1, can_view_gallery=1, can_chat=1, can_view_map=1, can_view_calendar=1, can_view_assistant=1, can_view_archive=1, can_view_redacted=0):
         """Erstellt einen neuen Benutzer mit bcrypt"""
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         with self.get_connection() as conn:
@@ -419,13 +420,13 @@ class DatabaseManager:
                     INSERT INTO users (username, password_hash, role, active, can_read, can_write, can_delete, can_download, can_upload,
                                        can_fill_forms, can_set_category, can_set_status, can_set_border_color, can_set_reminder, can_delete_termine,
                                        can_set_erinnerung, can_delete_erinnerung, can_set_note, can_archive,
-                                       can_view_stats, can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive,
+                                       can_view_stats, can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive, can_view_redacted,
                                        signature, logged_in)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (username, password_hash, role, 1, can_read, can_write, can_delete, can_download, can_upload,
                       can_fill_forms, can_set_category, can_set_status, can_set_border_color, can_set_reminder, can_delete_termine,
                       can_set_erinnerung, can_delete_erinnerung, can_set_note, can_archive,
-                      can_view_stats, can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive,
+                      can_view_stats, can_view_records, can_view_gallery, can_chat, can_view_map, can_view_calendar, can_view_assistant, can_view_archive, can_view_redacted,
                       None, 0))
                 conn.commit()
                 return cursor.lastrowid
@@ -437,7 +438,7 @@ class DatabaseManager:
         allowed = ['username', 'role', 'active', 'can_read', 'can_write', 'can_delete', 'can_download', 'can_upload', 'can_fill_forms',
                    'can_set_category', 'can_set_status', 'can_set_border_color', 'can_set_reminder', 'can_delete_termine',
                    'can_set_erinnerung', 'can_delete_erinnerung', 'can_set_note', 'can_archive',
-                   'can_view_stats', 'can_view_records', 'can_view_gallery', 'can_chat', 'can_view_map', 'can_view_calendar', 'can_view_assistant', 'can_view_archive', 'signature']
+                   'can_view_stats', 'can_view_records', 'can_view_gallery', 'can_chat', 'can_view_map', 'can_view_calendar', 'can_view_assistant', 'can_view_archive', 'can_view_redacted', 'signature']
         updates = {k: v for k, v in fields.items() if k in allowed}
         if not updates:
             return False

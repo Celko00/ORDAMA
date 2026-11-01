@@ -849,6 +849,38 @@ def init_gallery_blueprint(app, auth_manager, db_manager, base_dir, config):
             logger.error(f"Multi-Referenz-Ähnlichkeitssuche fehlgeschlagen: {e}")
             return jsonify({'error': f'Multi-Referenz-Ähnlichkeitssuche fehlgeschlagen: {str(e)}'}), 500
 
+    @gallery_bp.route('/all-ids', methods=['GET'])
+    @auth_manager.login_required
+    def get_all_attachment_ids():
+        """
+        Gibt alle Anhänge-IDs zurück (für Mehrfachauswahl "Alle auswählen" in Gallery)
+        """
+        try:
+            with db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Alle Anhänge-IDs abrufen (nur von nicht-archivierten Akten)
+                cursor.execute('''
+                    SELECT a.id
+                    FROM attachments a
+                    JOIN records r ON a.record_id = r.id
+                    WHERE r.archived = 0
+                    ORDER BY a.id
+                ''')
+                rows = cursor.fetchall()
+
+                ids = [row['id'] for row in rows]
+
+                return jsonify({
+                    'success': True,
+                    'ids': ids,
+                    'count': len(ids)
+                })
+
+        except Exception as e:
+            logger.error(f"Fehler beim Abrufen aller Anhänge-IDs: {e}")
+            return jsonify({'error': str(e)}), 500
+
     @gallery_bp.route('/preferences', methods=['GET', 'POST'])
     @auth_manager.login_required
     def gallery_preferences():
